@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { firestore } from '@/lib/firebase';
-import { collection, doc, getDocs, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, getDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import type { Device } from '@/lib/types';
 
 const deviceDataSchema = z.object({
@@ -34,24 +34,17 @@ export async function POST(request: Request) {
     if (deviceSnap.exists()) {
       // Device exists, update it
       const existingData = deviceSnap.data();
-      // Safely get historicalData, default to empty array if it doesn't exist
-      const historicalData = (existingData.historicalData || []).slice(-19); 
-      
-      const updatedPayload = {
-        name: data.name,
-        location: data.location.name,
-        coords: { lat: data.location.lat, lng: data.location.lng },
+      const historicalData = (existingData.historicalData || []).slice(-19); // Keep last 20 readings
+
+      await updateDoc(deviceRef, {
         status: data.status,
         coLevel: data.coLevel,
         timestamp: now,
         historicalData: [...historicalData, newReading],
-      };
-      
-      await updateDoc(deviceRef, updatedPayload);
-
+      });
     } else {
-      // Device does not exist, create it with initial data
-      const newDevicePayload = {
+      // Device does not exist, create it
+      await setDoc(deviceRef, {
         id: data.id,
         name: data.name,
         location: data.location.name,
@@ -60,10 +53,9 @@ export async function POST(request: Request) {
         coLevel: data.coLevel,
         timestamp: now,
         historicalData: [newReading], // Start with the first reading
-      };
-      await setDoc(deviceRef, newDevicePayload);
+      });
     }
-    
+
     return NextResponse.json({ message: 'Data received successfully' });
   } catch (error) {
     if (error instanceof z.ZodError) {

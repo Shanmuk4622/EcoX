@@ -9,12 +9,14 @@ import { DeviceStatusPieChart } from '@/components/device-status-pie-chart';
 import { RecentAlerts } from '@/components/recent-alerts';
 import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [criticalAlertsCount, setCriticalAlertsCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   async function fetchDevices() {
     try {
@@ -27,10 +29,51 @@ export default function DashboardPage() {
       setError(null);
     } catch (e) {
       console.error("Failed to fetch devices:", e);
-      setError("Failed to load device data. The server may be unavailable.");
+      setError("Failed to load device data. The server may be unavailable or still starting.");
     }
   }
 
+  async function checkForAnomalies(newDevices: Device[]) {
+    for (const device of newDevices) {
+      if (device.historicalData && device.historicalData.length > 1) {
+        const latestReading = device.historicalData[device.historicalData.length - 1];
+        try {
+          const result = await detectCoAnomaly({
+            deviceId: device.id,
+            coLevel: latestReading.coLevel,
+            timestamp: latestReading.timestamp,
+            historicalData: device.historicalData.slice(0, -1),
+          });
+          if (result.isAnomaly) {
+            const anomalyAlert: Alert = {
+              id: `anomaly-${device.id}-${latestReading.timestamp}`,
+              deviceId: device.id,
+              deviceName: device.name,
+              message: result.explanation,
+              timestamp: latestReading.timestamp,
+              severity: 'Warning', 
+            };
+            
+            setAlerts(prevAlerts => {
+              const alertExists = prevAlerts.some(a => a.id === anomalyAlert.id);
+              if (!alertExists) {
+                toast({
+                  title: `Anomaly Detected: ${device.name}`,
+                  description: result.explanation,
+                  variant: 'destructive'
+                });
+                return [anomalyAlert, ...prevAlerts].slice(0, 20);
+              }
+              return prevAlerts;
+            });
+          }
+        } catch (e) {
+          console.error(`AI Anomaly detection failed for ${device.id}:`, e);
+        }
+      }
+    }
+  }
+  
   useEffect(() => {
     fetchDevices(); // Initial fetch
     const interval = setInterval(fetchDevices, 5000); // Poll every 5 seconds
@@ -38,29 +81,31 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const critical = devices.filter(d => d.status === 'Critical').length;
-    setCriticalAlertsCount(critical);
-    
-    const recentCriticalAlerts = devices
-        .filter(d => d.status === 'Critical')
-        .map(d => ({
-            id: `alert-${d.id}-${d.timestamp}`,
-            deviceId: d.id,
-            deviceName: d.name,
-            message: `Critical CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
-            timestamp: d.timestamp,
-            severity: 'Critical' as const
-        }));
-    
-    // This is a simplified way to manage alerts. A more robust solution would be needed for production.
-    setAlerts(prevAlerts => {
-        const newAlerts = recentCriticalAlerts.filter(
-            newAlert => !prevAlerts.some(pa => pa.deviceId === newAlert.deviceId && pa.timestamp === newAlert.timestamp)
+    if (devices.length > 0) {
+      const critical = devices.filter(d => d.status === 'Critical').length;
+      setCriticalAlertsCount(critical);
+      
+      const statusAlerts = devices
+          .filter(d => d.status === 'Critical' || d.status === 'Warning')
+          .map(d => ({
+              id: `alert-${d.id}-${d.timestamp}`,
+              deviceId: d.id,
+              deviceName: d.name,
+              message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
+              timestamp: d.timestamp,
+              severity: d.status as 'Critical' | 'Warning'
+          }));
+      
+      setAlerts(prevAlerts => {
+        const newAlerts = statusAlerts.filter(
+            newAlert => !prevAlerts.some(pa => pa.id === newAlert.id)
         );
-        return [...newAlerts, ...prevAlerts].slice(0, 20); // Keep last 20 alerts
-    });
+        // Combine new status alerts with existing (anomaly) alerts
+        return [...newAlerts, ...prevAlerts.filter(pa => !pa.id.startsWith('alert-'))].slice(0, 20);
+      });
 
-
+      checkForAnomalies(devices);
+    }
   }, [devices]);
 
   return (
@@ -107,7 +152,7 @@ export default function DashboardPage() {
         </>
       ) : !error && (
         <div className="text-center py-10">
-          <p className="text-muted-foreground">Waiting for sensor data...</p>
+          <p className="text-muted-foreground">Waiting for sensor data... This may take a moment.</p>
         </div>
       )}
     </div>
