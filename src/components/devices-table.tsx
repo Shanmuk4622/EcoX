@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -28,12 +28,26 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
-import { initialDevices } from '@/lib/data';
 import type { Device } from '@/lib/types';
 import { format } from 'date-fns';
 
 export function DevicesTable() {
-  const [devices, setDevices] = useState<Device[]>(initialDevices);
+  const [devices, setDevices] = useState<Device[]>([]);
+
+  useEffect(() => {
+    async function fetchDevices() {
+      try {
+        const response = await fetch('/api/devices');
+        const data = await response.json();
+        setDevices(data);
+      } catch (error) {
+        console.error('Failed to fetch devices', error);
+      }
+    }
+    fetchDevices();
+    const intervalId = setInterval(fetchDevices, 5000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const getStatusBadge = (status: Device['status']) => {
     switch (status) {
@@ -111,7 +125,7 @@ export function DevicesTable() {
                 <TableCell>{getStatusBadge(device.status)}</TableCell>
                 <TableCell>{device.coLevel.toFixed(2)}</TableCell>
                 <TableCell>
-                  {format(new Date(device.timestamp), 'PPpp')}
+                  {device.timestamp ? format(new Date(device.timestamp), 'PPpp') : 'N/A'}
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>

@@ -139,7 +139,7 @@ export function MapView() {
                      <div className="grid grid-cols-2 items-center">
                       <span className="text-sm font-medium">Last Update</span>
                       <span className="text-right text-sm text-muted-foreground">
-                        {format(new Date(selectedDevice.timestamp), 'p, dd/MM/yy')}
+                        {selectedDevice.timestamp ? format(new Date(selectedDevice.timestamp), 'p, dd/MM/yy') : 'N/A'}
                       </span>
                     </div>
                   </div>
