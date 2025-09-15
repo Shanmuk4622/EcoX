@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // By default, all reads and writes are denied.
+    // This is a secure default to prevent unauthorized access.
+
+    match /devices/{deviceId} {
+      // Allow anyone to read device data. 
+      // This is necessary for the dashboard, map, and other components to display data.
+      allow read: if true;
+      
+      // Allow anyone to write device data.
+      // IMPORTANT: For a production app, you should lock this down to only allow
+      // authenticated users or specific service accounts to write data.
+      // For this project, we'll allow public writes so the Python script can send data.
+      allow write: if true; 
+    }
+  }
+}
