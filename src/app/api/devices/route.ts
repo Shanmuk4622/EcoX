@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { firestore } from '@/lib/firebase';
-import { collection, doc, getDocs, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, getDoc } from 'firebase/firestore';
 import type { Device } from '@/lib/types';
 
 
@@ -31,12 +31,16 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
     
-    let historicalData = [];
+    let historicalData: { coLevel: number; timestamp: string }[] = [];
     if (deviceSnap.exists()) {
-        historicalData = deviceSnap.data().historicalData || [];
+        const existingData = deviceSnap.data();
+        if (existingData && Array.isArray(existingData.historicalData)) {
+            historicalData = existingData.historicalData;
+        }
     }
     
-    historicalData = [...historicalData.slice(1), { coLevel: data.coLevel, timestamp: now }];
+    // Add the new reading and keep the history to the last 20 entries
+    const newHistoricalData = [...historicalData, { coLevel: data.coLevel, timestamp: now }].slice(-20);
 
 
     const devicePayload = {
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
       status: data.status,
       coLevel: data.coLevel,
       timestamp: now,
-      historicalData: historicalData,
+      historicalData: newHistoricalData,
     };
 
     await setDoc(deviceRef, devicePayload, { merge: true });
