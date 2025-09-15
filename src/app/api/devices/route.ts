@@ -3,9 +3,8 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { firestore } from '@/lib/firebase';
-import { collection, doc, getDocs, setDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import type { Device } from '@/lib/types';
-
 
 const deviceDataSchema = z.object({
   id: z.string(),
@@ -30,37 +29,46 @@ export async function POST(request: Request) {
     const deviceSnap = await getDoc(deviceRef);
 
     const now = new Date().toISOString();
-    
-    let historicalData: { coLevel: number; timestamp: string }[] = [];
+    const newReading = { coLevel: data.coLevel, timestamp: now };
+
     if (deviceSnap.exists()) {
-        const existingData = deviceSnap.data();
-        if (existingData && Array.isArray(existingData.historicalData)) {
-            historicalData = existingData.historicalData;
-        }
+      // Device exists, update it
+      const existingData = deviceSnap.data();
+      const historicalData = (existingData.historicalData || []).slice(-19); // Keep last 19 + the new one
+      
+      const updatedPayload = {
+        name: data.name,
+        location: data.location.name,
+        coords: { lat: data.location.lat, lng: data.location.lng },
+        status: data.status,
+        coLevel: data.coLevel,
+        timestamp: now,
+        historicalData: [...historicalData, newReading],
+      };
+      
+      await updateDoc(deviceRef, updatedPayload);
+      console.log(`Updated device: ${data.id}`);
+
+    } else {
+      // Device does not exist, create it
+      const newDevicePayload = {
+        id: data.id,
+        name: data.name,
+        location: data.location.name,
+        coords: { lat: data.location.lat, lng: data.location.lng },
+        status: data.status,
+        coLevel: data.coLevel,
+        timestamp: now,
+        historicalData: [newReading], // Start with the first reading
+      };
+      await setDoc(deviceRef, newDevicePayload);
+      console.log(`Created new device: ${data.id}`);
     }
-    
-    // Add the new reading and keep the history to the last 20 entries
-    const newHistoricalData = [...historicalData, { coLevel: data.coLevel, timestamp: now }].slice(-20);
-
-
-    const devicePayload = {
-      id: data.id,
-      name: data.name,
-      location: data.location.name,
-      coords: { lat: data.location.lat, lng: data.location.lng },
-      status: data.status,
-      coLevel: data.coLevel,
-      timestamp: now,
-      historicalData: newHistoricalData,
-    };
-
-    await setDoc(deviceRef, devicePayload, { merge: true });
-
-    console.log(`Upserted device: ${data.id}`);
     
     return NextResponse.json({ message: 'Data received successfully' });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('Zod Error:', error.errors);
       return NextResponse.json({ error: 'Invalid data format', details: error.errors }, { status: 400 });
     }
     console.error('API Error:', error);
