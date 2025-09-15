@@ -5,7 +5,6 @@ import { adminDb } from '@/lib/firebase';
 import { initialDevices } from '@/lib/data';
 
 export async function GET() {
-  // Check if adminDb is properly initialized by checking for a method it should have.
   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error('Error seeding database: Firestore not initialized correctly.');
     return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });

@@ -3,11 +3,9 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-// CORRECTED: Use the admin SDK for server-side operations
 import { adminDb } from '@/lib/firebase';
 import type { Device } from '@/lib/types';
 
-// Zod schema for validating incoming device data
 const deviceDataSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -22,31 +20,13 @@ export async function POST(request: Request) {
     const json = await request.json();
     const data = deviceDataSchema.parse(json);
     
-    // Reference the document in the 'devices' collection
     const deviceRef = adminDb.collection('devices').doc(data.id);
     const now = new Date();
     const newReading = { coLevel: data.coLevel, timestamp: now.toISOString() };
 
     const deviceSnap = await deviceRef.get();
 
-    if (deviceSnap.exists) {
-      // --- Device EXISTS, UPDATE it ---
-      const existingData = deviceSnap.data() || {};
-      // Get existing historical data or start with an empty array
-      const historicalData = (existingData.historicalData || []).slice(0, 19);
-
-      await deviceRef.update({
-        status: data.status,
-        coLevel: data.coLevel,
-        timestamp: now.toISOString(),
-        name: data.name,
-        location: data.location.name, // Keep location as a simple string
-        coords: { lat: data.location.lat, lng: data.location.lng },
-        historicalData: [newReading, ...historicalData],
-      });
-      console.log(`Successfully updated device: ${data.id}`);
-
-    } else {
+    if (!deviceSnap.exists) {
       // --- Device is NEW, CREATE it ---
       await deviceRef.set({
         id: data.id,
@@ -59,6 +39,21 @@ export async function POST(request: Request) {
         historicalData: [newReading], // Start with the first reading
       });
       console.log(`Successfully created new device: ${data.id}`);
+    } else {
+      // --- Device EXISTS, UPDATE it ---
+      const existingData = deviceSnap.data() || {};
+      const historicalData = (existingData.historicalData || []).slice(0, 19);
+
+      await deviceRef.update({
+        status: data.status,
+        coLevel: data.coLevel,
+        timestamp: now.toISOString(),
+        name: data.name,
+        location: data.location.name,
+        coords: { lat: data.location.lat, lng: data.location.lng },
+        historicalData: [newReading, ...historicalData],
+      });
+      console.log(`Successfully updated device: ${data.id}`);
     }
 
     return NextResponse.json({ message: 'Data received successfully' });
@@ -74,9 +69,12 @@ export async function POST(request: Request) {
   }
 }
 
-// GET function to retrieve all devices
 export async function GET() {
     try {
+        if (!adminDb || typeof adminDb.collection !== 'function') {
+            console.error('[API GET ERROR] Firestore is not initialized.');
+            return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });
+        }
         const snapshot = await adminDb.collection('devices').get();
         if (snapshot.empty) {
             console.log('No devices found in Firestore.');
