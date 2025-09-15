@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       } else {
         // Device exists, update it
         const existingData = deviceSnap.data();
+        // Ensure historicalData is an array before trying to slice it
         const historicalData = (existingData.historicalData || []).slice(-19); // Keep last 20 readings
         
         const updatedData = {
@@ -67,10 +68,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Data received successfully' });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('Zod Validation Error:', error.errors);
       return NextResponse.json({ error: 'Invalid data format', details: error.errors }, { status: 400 });
     }
-    console.error('API Error:', error);
-    // Ensure a generic but clear error is sent to the client
+    // Log the full error to the server console for debugging
+    console.error('API Error in POST /api/devices:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
   }
@@ -82,7 +84,7 @@ export async function GET() {
     const devices = querySnapshot.docs.map(doc => doc.data() as Device);
     return NextResponse.json(devices);
   } catch (error) {
-     console.error('API Error:', error);
+     console.error('API Error in GET /api/devices:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
