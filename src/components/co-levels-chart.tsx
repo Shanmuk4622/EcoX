@@ -26,6 +26,23 @@ interface COLevelsChartProps {
 export function COLevelsChart({ devices }: COLevelsChartProps) {
   // For simplicity, we'll show data for the first device
   const device = devices[0];
+  
+  if (!device) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>CO Level Monitoring</CardTitle>
+                <CardDescription>
+                Awaiting data...
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="h-[300px] flex items-center justify-center">
+                <p className="text-muted-foreground">No device data available to display chart.</p>
+            </CardContent>
+        </Card>
+    );
+  }
+
   const chartData = device.historicalData.map((d) => ({
     ...d,
     time: format(new Date(d.timestamp), 'HH:mm'),

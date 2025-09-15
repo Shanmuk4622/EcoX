@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
-import { initialDevices } from '@/lib/data';
 import type { Device, Alert } from '@/lib/types';
 import { OverviewCards } from '@/components/overview-cards';
 import { COLevelsChart } from '@/components/co-levels-chart';
@@ -12,85 +11,56 @@ import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/
 import { Terminal } from 'lucide-react';
 
 export default function DashboardPage() {
-  const [devices, setDevices] = useState<Device[]>(initialDevices);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [criticalAlertsCount, setCriticalAlertsCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fetchDevices() {
+    try {
+      const response = await fetch('/api/devices');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setDevices(data);
+      setError(null);
+    } catch (e) {
+      console.error("Failed to fetch devices:", e);
+      setError("Failed to load device data. The server may be unavailable.");
+    }
+  }
+
+  useEffect(() => {
+    fetchDevices(); // Initial fetch
+    const interval = setInterval(fetchDevices, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const critical = devices.filter(d => d.status === 'Critical').length;
     setCriticalAlertsCount(critical);
-  }, [devices]);
+    
+    const recentCriticalAlerts = devices
+        .filter(d => d.status === 'Critical')
+        .map(d => ({
+            id: `alert-${d.id}-${d.timestamp}`,
+            deviceId: d.id,
+            deviceName: d.name,
+            message: `Critical CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
+            timestamp: d.timestamp,
+            severity: 'Critical' as const
+        }));
+    
+    // This is a simplified way to manage alerts. A more robust solution would be needed for production.
+    setAlerts(prevAlerts => {
+        const newAlerts = recentCriticalAlerts.filter(
+            newAlert => !prevAlerts.some(pa => pa.deviceId === newAlert.deviceId && pa.timestamp === newAlert.timestamp)
+        );
+        return [...newAlerts, ...prevAlerts].slice(0, 20); // Keep last 20 alerts
+    });
 
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      // Pick a random device to update
-      const deviceIndex = Math.floor(Math.random() * devices.length);
-      const deviceToUpdate = { ...devices[deviceIndex] };
 
-      // Simulate new CO reading
-      const isSpike = Math.random() < 0.1; // 10% chance of a spike
-      const newCoLevel = isSpike
-        ? parseFloat((20 + Math.random() * 30).toFixed(2)) // Spike
-        : parseFloat(
-            (
-              deviceToUpdate.historicalData[
-                deviceToUpdate.historicalData.length - 1
-              ].coLevel +
-              Math.random() * 2 -
-              1
-            ).toFixed(2)
-          ); // Normal fluctuation
-
-      const newReading = {
-        coLevel: Math.max(0, newCoLevel),
-        timestamp: new Date().toISOString(),
-      };
-      
-      const updatedHistoricalData = [...deviceToUpdate.historicalData.slice(1), newReading];
-
-      try {
-        const anomalyResult = await detectCoAnomaly({
-          deviceId: deviceToUpdate.id,
-          coLevel: newReading.coLevel,
-          timestamp: newReading.timestamp,
-          historicalData: updatedHistoricalData,
-        });
-
-        const newStatus = anomalyResult.isAnomaly ? 'Critical' : 'Normal';
-        
-        if (anomalyResult.isAnomaly) {
-            const newAlert: Alert = {
-                id: `alert-${Date.now()}`,
-                deviceId: deviceToUpdate.id,
-                deviceName: deviceToUpdate.name,
-                message: anomalyResult.explanation,
-                timestamp: newReading.timestamp,
-                severity: 'Critical',
-            };
-            setAlerts(prev => [newAlert, ...prev]);
-        }
-
-        const updatedDevices = devices.map((device, index) => {
-          if (index === deviceIndex) {
-            return {
-              ...device,
-              coLevel: newReading.coLevel,
-              timestamp: newReading.timestamp,
-              historicalData: updatedHistoricalData,
-              status: newStatus,
-            };
-          }
-          return device;
-        });
-
-        setDevices(updatedDevices);
-        
-      } catch (error) {
-        console.error("Error detecting anomaly:", error);
-      }
-    }, 5000); // Run every 5 seconds
-
-    return () => clearInterval(interval);
   }, [devices]);
 
   return (
@@ -102,6 +72,16 @@ export default function DashboardPage() {
         </p>
       </div>
 
+       {error && (
+         <UiAlert variant="destructive">
+           <Terminal className="h-4 w-4" />
+           <AlertTitle>Connection Error</AlertTitle>
+           <AlertDescription>
+             {error}
+           </AlertDescription>
+         </UiAlert>
+       )}
+
        {criticalAlertsCount > 0 && (
          <UiAlert variant="destructive">
            <Terminal className="h-4 w-4" />
@@ -111,17 +91,25 @@ export default function DashboardPage() {
            </AlertDescription>
          </UiAlert>
        )}
-
-      <OverviewCards devices={devices} alerts={alerts} />
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <div className="lg:col-span-4">
-          <COLevelsChart devices={devices} />
+      
+      {devices.length > 0 ? (
+        <>
+          <OverviewCards devices={devices} alerts={alerts} />
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <div className="lg:col-span-4">
+              <COLevelsChart devices={devices} />
+            </div>
+            <div className="lg:col-span-3 grid gap-4">
+              <DeviceStatusPieChart devices={devices} />
+              <RecentAlerts alerts={alerts} />
+            </div>
+          </div>
+        </>
+      ) : !error && (
+        <div className="text-center py-10">
+          <p className="text-muted-foreground">Waiting for sensor data...</p>
         </div>
-        <div className="lg:col-span-3 grid gap-4">
-          <DeviceStatusPieChart devices={devices} />
-          <RecentAlerts alerts={alerts} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
