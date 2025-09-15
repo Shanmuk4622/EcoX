@@ -5,9 +5,12 @@ import { adminDb } from '@/lib/firebase';
 import { initialDevices } from '@/lib/data';
 
 export async function GET() {
-  if (!adminDb.collection) {
+  // Check if adminDb is properly initialized by checking for a method it should have.
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error('Error seeding database: Firestore not initialized correctly.');
     return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });
   }
+
   try {
     const devicesCollection = adminDb.collection('devices');
     const batch = adminDb.batch();
@@ -19,10 +22,12 @@ export async function GET() {
 
     await batch.commit();
     
+    console.log(`Seeded ${initialDevices.length} devices successfully.`);
     return NextResponse.json({ message: `Seeded ${initialDevices.length} devices successfully.` });
 
   } catch (error) {
     console.error('Error seeding database:', error);
-    return NextResponse.json({ error: 'Internal Server Error', details: (error as Error).message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
   }
 }
