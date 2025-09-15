@@ -1,4 +1,5 @@
 import type { Device } from './types';
+import { doc } from 'firebase/firestore';
 
 const now = new Date();
 
@@ -14,7 +15,7 @@ const generateHistoricalData = (baseLevel: number) => {
   return data;
 };
 
-export const initialDevices: Device[] = [
+export const initialDevices: Omit<Device, 'historicalData'> & { historicalData: { coLevel: number; timestamp: string }[] }[] = [
   {
     id: 'DEV001',
     name: 'Downtown Office',

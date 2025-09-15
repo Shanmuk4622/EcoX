@@ -34,7 +34,8 @@ export async function POST(request: Request) {
     if (deviceSnap.exists()) {
       // Device exists, update it
       const existingData = deviceSnap.data();
-      const historicalData = (existingData.historicalData || []).slice(-19); // Keep last 19 + the new one
+      // Safely get historicalData, default to empty array if it doesn't exist
+      const historicalData = (existingData.historicalData || []).slice(-19); 
       
       const updatedPayload = {
         name: data.name,
@@ -47,10 +48,9 @@ export async function POST(request: Request) {
       };
       
       await updateDoc(deviceRef, updatedPayload);
-      console.log(`Updated device: ${data.id}`);
 
     } else {
-      // Device does not exist, create it
+      // Device does not exist, create it with initial data
       const newDevicePayload = {
         id: data.id,
         name: data.name,
@@ -62,13 +62,11 @@ export async function POST(request: Request) {
         historicalData: [newReading], // Start with the first reading
       };
       await setDoc(deviceRef, newDevicePayload);
-      console.log(`Created new device: ${data.id}`);
     }
     
     return NextResponse.json({ message: 'Data received successfully' });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('Zod Error:', error.errors);
       return NextResponse.json({ error: 'Invalid data format', details: error.errors }, { status: 400 });
     }
     console.error('API Error:', error);
