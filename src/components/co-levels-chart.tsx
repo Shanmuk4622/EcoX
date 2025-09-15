@@ -24,10 +24,9 @@ interface COLevelsChartProps {
 }
 
 export function COLevelsChart({ devices }: COLevelsChartProps) {
-  // For simplicity, we'll show data for the first device
   const device = devices[0];
   
-  if (!device) {
+  if (!device || !device.historicalData || device.historicalData.length === 0) {
     return (
         <Card>
             <CardHeader>
@@ -43,10 +42,12 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
     );
   }
 
-  const chartData = device.historicalData.map((d) => ({
-    ...d,
-    time: format(new Date(d.timestamp), 'HH:mm'),
-  }));
+  const chartData = [...device.historicalData]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map((d) => ({
+      ...d,
+      time: format(new Date(d.timestamp), 'HH:mm:ss'),
+    }));
 
   return (
     <Card>
@@ -63,7 +64,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
               data={chartData}
               margin={{
                 top: 5,
-                right: 10,
+                right: 20,
                 left: -10,
                 bottom: 0,
               }}
@@ -81,7 +82,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                domain={[0, 'dataMax + 10']}
+                domain={[0, 'dataMax + 5']}
               />
               <Tooltip
                 contentStyle={{

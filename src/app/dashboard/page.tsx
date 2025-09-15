@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
-import type { Device, Alert } from '@/lib/types';
+import type { Device, Alert, HistoricalData } from '@/lib/types';
 import { OverviewCards } from '@/components/overview-cards';
 import { COLevelsChart } from '@/components/co-levels-chart';
 import { DeviceStatusPieChart } from '@/components/device-status-pie-chart';
@@ -14,35 +16,75 @@ import { useToast } from '@/hooks/use-toast';
 export default function DashboardPage() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [criticalAlertsCount, setCriticalAlertsCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  async function fetchDevices() {
-    try {
-      const response = await fetch('/api/devices');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setDevices(data);
-      setError(null);
-    } catch (e) {
-      console.error("Failed to fetch devices:", e);
-      setError("Failed to load device data. The server may be unavailable or still starting.");
-    }
-  }
+  useEffect(() => {
+    const q = query(collection(db, 'devices'), orderBy('name'));
+    const historicalDataState: Record<string, HistoricalData[]> = {};
 
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const devicesData: Device[] = [];
+
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+
+        let timestampStr = new Date().toISOString();
+        if (data.timestamp && data.timestamp instanceof Timestamp) {
+            timestampStr = data.timestamp.toDate().toISOString();
+        }
+
+        const currentReading: HistoricalData = {
+          coLevel: data.coLevel || 0,
+          timestamp: timestampStr
+        };
+        
+        if (!historicalDataState[doc.id]) {
+          historicalDataState[doc.id] = [];
+        }
+
+        const history = historicalDataState[doc.id];
+        if (history.length === 0 || history[0].timestamp !== currentReading.timestamp) {
+          history.unshift(currentReading);
+          if (history.length > 30) {
+            historicalDataState[doc.id] = history.slice(0, 30);
+          }
+        }
+
+        devicesData.push({
+          id: doc.id,
+          name: data.name || 'Unknown Device',
+          location: data.location?.name || 'Unknown Location',
+          type: data.type || 'Air Quality Monitor',
+          status: data.status || 'inactive',
+          coLevel: data.coLevel || 0,
+          timestamp: timestampStr,
+          battery: data.battery || 0,
+          historicalData: historicalDataState[doc.id],
+        } as Device);
+      });
+      
+      devicesData.sort((a, b) => a.name.localeCompare(b.name));
+      setDevices(devicesData);
+      setError(null);
+    }, (err) => {
+      console.error("Failed to fetch devices from Firestore:", err);
+      setError("Failed to load device data. Please check your connection and Firebase setup.");
+    });
+
+    return () => unsubscribe();
+  }, []);
+  
   async function checkForAnomalies(newDevices: Device[]) {
     for (const device of newDevices) {
       if (device.historicalData && device.historicalData.length > 1) {
-        const latestReading = device.historicalData[device.historicalData.length - 1];
+        const latestReading = device.historicalData[0];
         try {
           const result = await detectCoAnomaly({
             deviceId: device.id,
             coLevel: latestReading.coLevel,
             timestamp: latestReading.timestamp,
-            historicalData: device.historicalData.slice(0, -1),
+            historicalData: device.historicalData.slice(1),
           });
           if (result.isAnomaly) {
             const anomalyAlert: Alert = {
@@ -58,7 +100,7 @@ export default function DashboardPage() {
               const alertExists = prevAlerts.some(a => a.id === anomalyAlert.id);
               if (!alertExists) {
                 toast({
-                  title: `Anomaly Detected: ${device.name}`,
+                  title: `AI Anomaly Detected: ${device.name}`,
                   description: result.explanation,
                   variant: 'destructive'
                 });
@@ -75,17 +117,8 @@ export default function DashboardPage() {
   }
   
   useEffect(() => {
-    fetchDevices(); // Initial fetch
-    const interval = setInterval(fetchDevices, 5000); // Poll every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     if (devices.length > 0) {
-      const critical = devices.filter(d => d.status === 'Critical').length;
-      setCriticalAlertsCount(critical);
-      
-      const statusAlerts = devices
+        const statusAlerts = devices
           .filter(d => d.status === 'Critical' || d.status === 'Warning')
           .map(d => ({
               id: `alert-${d.id}-${d.timestamp}`,
@@ -100,20 +133,24 @@ export default function DashboardPage() {
         const newAlerts = statusAlerts.filter(
             newAlert => !prevAlerts.some(pa => pa.id === newAlert.id)
         );
-        // Combine new status alerts with existing (anomaly) alerts
-        return [...newAlerts, ...prevAlerts.filter(pa => !pa.id.startsWith('alert-'))].slice(0, 20);
+        
+        const existingAnomalyAlerts = prevAlerts.filter(pa => pa.id.startsWith('anomaly-'));
+        
+        return [...newAlerts, ...existingAnomalyAlerts].slice(0, 20);
       });
 
       checkForAnomalies(devices);
     }
   }, [devices]);
 
+  const criticalAlertsCount = alerts.filter(a => a.severity === 'Critical').length;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          Welcome to your real-time environmental overview.
+          Now displaying live data from your Raspberry Pi via Firestore.
         </p>
       </div>
 
@@ -152,7 +189,7 @@ export default function DashboardPage() {
         </>
       ) : !error && (
         <div className="text-center py-10">
-          <p className="text-muted-foreground">Waiting for sensor data... This may take a moment.</p>
+          <p className="text-muted-foreground">Waiting for live sensor data from Firestore...</p>
         </div>
       )}
     </div>
