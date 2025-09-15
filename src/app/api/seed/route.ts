@@ -1,16 +1,19 @@
+
 'use server';
 import { NextResponse } from 'next/server';
-import { collection, writeBatch } from 'firebase/firestore';
-import { firestore } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase';
 import { initialDevices } from '@/lib/data';
 
 export async function GET() {
+  if (!adminDb.collection) {
+    return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });
+  }
   try {
-    const devicesCollection = collection(firestore, 'devices');
-    const batch = writeBatch(firestore);
+    const devicesCollection = adminDb.collection('devices');
+    const batch = adminDb.batch();
 
     initialDevices.forEach(device => {
-      const deviceRef = doc(devicesCollection, device.id);
+      const deviceRef = devicesCollection.doc(device.id);
       batch.set(deviceRef, device);
     });
 
