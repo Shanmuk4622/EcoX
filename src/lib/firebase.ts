@@ -1,20 +1,19 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+// Location: src/lib/firebase.ts
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  projectId: "studio-5053909228-90740",
-  appId: "1:627075700913:web:fdd0d73e2ecbf35bf6aa90",
-  storageBucket: "studio-5053909228-90740.firebasestorage.app",
-  apiKey: "AIzaSyBgVSzyu1eBhxfA3plxGrnrpgqUcUhVqRM",
-  authDomain: "studio-5053909228-90740.firebaseapp.com",
-  measurementId: "",
-  messagingSenderId: "627075700913"
-};
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const firestore = getFirestore(app);
+// Use environment variables for your credentials for security
+const serviceAccount = JSON.parse(
+  process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string
+);
 
-export { app, firestore };
+if (!getApps().length) {
+  initializeApp({
+    credential: cert(serviceAccount),
+  });
+}
+
+const adminDb = getFirestore();
+
+export { adminDb };
