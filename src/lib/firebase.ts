@@ -8,8 +8,11 @@ const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 let adminDb: ReturnType<typeof getFirestore>;
 
 if (getApps().length === 0) {
-  // Only initialize if the service account key is present
-  if (serviceAccountKey) {
+  // Use a dummy implementation in development to avoid needing a real service account key
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[FIREBASE ADMIN] Using dummy Firestore implementation for development.');
+    adminDb = {} as ReturnType<typeof getFirestore>;
+  } else if (serviceAccountKey) {
     try {
       const serviceAccount = JSON.parse(serviceAccountKey);
       initializeApp({
