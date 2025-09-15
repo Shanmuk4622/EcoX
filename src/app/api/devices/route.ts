@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { firestore } from '@/lib/firebase';
-import { collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, updateDoc, getDocs } from 'firebase/firestore';
 import type { Device } from '@/lib/types';
 
 const deviceDataSchema = z.object({
