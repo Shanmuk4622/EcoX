@@ -1,3 +1,11 @@
+
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "map-background",
+      "description": "A stylized, abstract map background.",
+      "imageUrl": "https://picsum.photos/seed/mapbg/1200/800",
+      "imageHint": "abstract map"
+    }
+  ]
 }
