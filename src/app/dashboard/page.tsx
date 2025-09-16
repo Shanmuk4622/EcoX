@@ -36,81 +36,63 @@ export default function DashboardPage() {
     const q = query(collection(db, 'devices'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      setDevices(prevDevices => {
-        const updatedDevices: Device[] = [...prevDevices];
-        const deviceIndexMap: { [id: string]: number } = {};
-        updatedDevices.forEach((d, i) => { deviceIndexMap[d.id] = i; });
+      const updatedDevicesMap = new Map<string, Device>();
+      
+      devices.forEach(d => updatedDevicesMap.set(d.id, d));
 
-        querySnapshot.docChanges().forEach((change) => {
-          const doc = change.doc;
-          const data = doc.data();
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const deviceId = doc.id;
 
-          let timestampStr = new Date().toISOString();
-          if (data.timestamp) {
+        let timestampStr = new Date().toISOString();
+        if (data.timestamp) {
             if (data.timestamp instanceof Timestamp) {
                 timestampStr = data.timestamp.toDate().toISOString();
             } else if (typeof data.timestamp === 'string') {
                 timestampStr = data.timestamp;
             }
-          }
-          
-          let locationName = 'Unknown Location';
-          let coords = { lat: 0, lng: 0 };
-          if (typeof data.location === 'string') {
-              locationName = data.location;
-          } else if (data.location && typeof data.location === 'object') {
-              locationName = data.location.name || 'Unknown Location';
-              coords = { lat: data.location.lat || 0, lng: data.location.lng || 0 };
-          }
-          
-          const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
-          const newReading = { coLevel: coLevel, timestamp: timestampStr };
-          const deviceId = doc.id;
-          
-          if (change.type === 'added' || !(deviceId in deviceIndexMap)) {
-            const newDevice: Device = {
-              id: deviceId,
-              name: data.name || 'Unknown Device',
-              location: locationName,
-              coords: coords,
-              status: data.status || 'inactive',
-              coLevel: newReading.coLevel,
-              timestamp: newReading.timestamp,
-              historicalData: [newReading],
-            };
-            updatedDevices.push(newDevice);
-            deviceIndexMap[deviceId] = updatedDevices.length - 1;
-          } else if (change.type === 'modified') {
-            const index = deviceIndexMap[deviceId];
-            const existingDevice = updatedDevices[index];
-
-            const updatedDevice = {
-              ...existingDevice,
-              coLevel: newReading.coLevel,
-              status: data.status || 'inactive',
-              timestamp: newReading.timestamp,
-              name: data.name || 'Unknown Device',
-              location: locationName,
-              coords: coords,
-              historicalData: [newReading, ...existingDevice.historicalData].slice(0, 20),
-            };
-            updatedDevices[index] = updatedDevice;
-
-            if (selectedDevice?.id === deviceId) {
-              setSelectedDevice(updatedDevice);
-            }
-          }
-        });
-        
-        updatedDevices.sort((a, b) => a.name.localeCompare(b.name));
-        
-        if (updatedDevices.length > 0 && !selectedDevice) {
-          setSelectedDevice(updatedDevices[0]);
         }
+        
+        let locationName = 'Unknown Location';
+        let coords = { lat: 0, lng: 0 };
+        if (typeof data.location === 'string') {
+            locationName = data.location;
+        } else if (data.location && typeof data.location === 'object') {
+            locationName = data.location.name || 'Unknown Location';
+            coords = { lat: data.location.lat || 0, lng: data.location.lng || 0 };
+        }
+        
+        const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
+        const newReading = { coLevel, timestamp: timestampStr };
 
-        return updatedDevices;
+        const existingDevice = updatedDevicesMap.get(deviceId);
+
+        const updatedDevice: Device = {
+          id: deviceId,
+          name: data.name || 'Unknown Device',
+          location: locationName,
+          coords: coords,
+          status: data.status || 'inactive',
+          coLevel: newReading.coLevel,
+          timestamp: newReading.timestamp,
+          historicalData: [newReading, ...(existingDevice?.historicalData || [])].slice(0, 20),
+        };
+        updatedDevicesMap.set(deviceId, updatedDevice);
       });
+
+      const updatedDevices = Array.from(updatedDevicesMap.values()).sort((a, b) => a.name.localeCompare(b.name));
       
+      setDevices(updatedDevices);
+      
+      if (updatedDevices.length > 0 && !selectedDevice) {
+        setSelectedDevice(updatedDevices[0]);
+      } else if (selectedDevice) {
+        const updatedSelected = updatedDevicesMap.get(selectedDevice.id);
+        if (updatedSelected) {
+          setSelectedDevice(updatedSelected);
+        }
+      }
+
       setLoading(false);
       setError(null);
     }, (err) => {
@@ -122,6 +104,14 @@ export default function DashboardPage() {
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (devices.length > 0) {
+      checkForAnomalies(devices);
+      updateStatusAlerts(devices);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devices]);
 
   async function checkForAnomalies(targetDevices: Device[]) {
     for (const device of targetDevices) {
@@ -148,11 +138,13 @@ export default function DashboardPage() {
             setAlerts(prevAlerts => {
               const alertExists = prevAlerts.some(a => a.id === anomalyAlert.id);
               if (!alertExists) {
-                toast({
-                  title: `AI Anomaly Detected: ${device.name}`,
-                  description: result.explanation,
-                  variant: 'destructive'
-                });
+                setTimeout(() => {
+                  toast({
+                    title: `AI Anomaly Detected: ${device.name}`,
+                    description: result.explanation,
+                    variant: 'destructive'
+                  });
+                }, 0);
                 return [anomalyAlert, ...prevAlerts].slice(0, 20);
               }
               return prevAlerts;
@@ -165,36 +157,31 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(() => {
-    if (devices.length > 0) {
-      checkForAnomalies(devices);
-
-      const statusAlerts = devices
-        .filter(d => (d.status === 'Critical' || d.status === 'Warning'))
-        .map(d => ({
-            id: `alert-${d.id}-${d.timestamp}`,
-            deviceId: d.id,
-            deviceName: d.name,
-            message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
-            timestamp: d.timestamp,
-            severity: d.status as 'Critical' | 'Warning'
-        }));
+  function updateStatusAlerts(targetDevices: Device[]) {
+    const statusAlerts = targetDevices
+      .filter(d => (d.status === 'Critical' || d.status === 'Warning'))
+      .map(d => ({
+          id: `alert-${d.id}-${d.timestamp}`,
+          deviceId: d.id,
+          deviceName: d.name,
+          message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
+          timestamp: d.timestamp,
+          severity: d.status as 'Critical' | 'Warning'
+      }));
+    
+    setAlerts(prevAlerts => {
+      const alertIds = new Set(prevAlerts.map(a => a.id));
+      const newStatusAlerts = statusAlerts.filter(a => !alertIds.has(a.id));
       
-      setAlerts(prevAlerts => {
-        const alertIds = new Set(prevAlerts.map(a => a.id));
-        const newStatusAlerts = statusAlerts.filter(a => !alertIds.has(a.id));
-        
-        if (newStatusAlerts.length === 0) return prevAlerts;
+      if (newStatusAlerts.length === 0) return prevAlerts;
 
-        const allAlerts = [...newStatusAlerts, ...prevAlerts]
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            .slice(0, 20);
+      const allAlerts = [...newStatusAlerts, ...prevAlerts]
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 20);
 
-        return allAlerts;
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devices]);
+      return allAlerts;
+    });
+  }
 
   const criticalAlertsCount = alerts.filter(a => a.severity === 'Critical').length;
 
@@ -271,6 +258,7 @@ export default function DashboardPage() {
       ) : !error && (
         <div className="text-center py-10">
           <p className="text-muted-foreground">No devices found in Firestore. Waiting for sensor data...</p>
+          <p className="text-sm text-muted-foreground mt-2">If you have just started, you can seed initial data by visiting <a href="/api/seed" className="underline">/api/seed</a></p>
         </div>
       )}
     </div>
