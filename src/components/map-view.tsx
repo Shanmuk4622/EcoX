@@ -56,8 +56,7 @@ export function MapView() {
         }
         const data: Device[] = await response.json();
         setDevices(data);
-        if (data.length > 0) {
-            // Calculate center of all devices
+        if (data.length > 0 && !selectedDevice) { // Don't recenter if a device is selected
             const totalLat = data.reduce((sum, d) => sum + d.coords.lat, 0);
             const totalLng = data.reduce((sum, d) => sum + d.coords.lng, 0);
             setCenter({ lat: totalLat / data.length, lng: totalLng / data.length });
@@ -70,7 +69,7 @@ export function MapView() {
     fetchDevices();
     const interval = setInterval(fetchDevices, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedDevice]);
 
   const handleMarkerClick = (device: Device) => {
     setSelectedDevice(device);

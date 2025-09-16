@@ -32,6 +32,8 @@ export default function DashboardPage() {
         let timestampStr = new Date().toISOString();
         if (data.timestamp && data.timestamp instanceof Timestamp) {
             timestampStr = data.timestamp.toDate().toISOString();
+        } else if (typeof data.timestamp === 'string') {
+            timestampStr = data.timestamp;
         }
 
         const currentReading: HistoricalData = {
@@ -40,7 +42,7 @@ export default function DashboardPage() {
         };
         
         if (!historicalDataState[doc.id]) {
-          historicalDataState[doc.id] = [];
+          historicalDataState[doc.id] = data.historicalData || [];
         }
 
         const history = historicalDataState[doc.id];
@@ -54,7 +56,8 @@ export default function DashboardPage() {
         devicesData.push({
           id: doc.id,
           name: data.name || 'Unknown Device',
-          location: data.location?.name || 'Unknown Location',
+          location: data.location || 'Unknown Location',
+          coords: data.coords || { lat: 0, lng: 0},
           type: data.type || 'Air Quality Monitor',
           status: data.status || 'inactive',
           coLevel: data.coLevel || 0,
@@ -130,17 +133,30 @@ export default function DashboardPage() {
           }));
       
       setAlerts(prevAlerts => {
-        const newAlerts = statusAlerts.filter(
-            newAlert => !prevAlerts.some(pa => pa.id === newAlert.id)
-        );
+        const existingAlertIds = new Set(prevAlerts.map(a => a.id));
+        const newAlerts = statusAlerts.filter(newAlert => !existingAlertIds.has(newAlert.id));
         
+        // Keep existing anomaly alerts
         const existingAnomalyAlerts = prevAlerts.filter(pa => pa.id.startsWith('anomaly-'));
+        const existingAnomalyIds = new Set(existingAnomalyAlerts.map(a => a.id));
+
+        const combinedAlerts = [
+          ...newAlerts, 
+          ...prevAlerts.filter(pa => !existingAnomalyIds.has(pa.id)) // A bit complex, but ensures we don't duplicate status alerts
+        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        // Re-add anomaly alerts to the top
+        const finalAlerts = [
+            ...existingAnomalyAlerts,
+            ...combinedAlerts.filter(a => !existingAnomalyIds.has(a.id))
+        ].slice(0, 20);
         
-        return [...newAlerts, ...existingAnomalyAlerts].slice(0, 20);
+        return finalAlerts;
       });
 
       checkForAnomalies(devices);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [devices]);
 
   const criticalAlertsCount = alerts.filter(a => a.severity === 'Critical').length;

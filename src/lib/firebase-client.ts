@@ -1,21 +1,20 @@
 
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
+// This is a public configuration and is safe to expose.
+// Security is handled by Firestore Security Rules.
 const firebaseConfig = {
-  apiKey: "AIzaSyBgVSzyu1eBhxfA3plxGrnrpgqUcUhVqRM",
-  authDomain: "studio-5053909228-90740.firebaseapp.com",
-  projectId: "studio-5053909228-90740",
-  storageBucket: "studio-5053909228-90740.firebasestorage.app",
-  messagingSenderId: "627075700913",
-  appId: "1:627075700913:web:fdd0d73e2ecbf35bf6aa90"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app;
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-}
-
+// Initialize Firebase
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
-export { db };
+export { app, db };

@@ -1,3 +1,4 @@
+
 // Location: src/app/api/devices/route.ts
 'use server';
 
