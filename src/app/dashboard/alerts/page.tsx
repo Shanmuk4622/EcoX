@@ -1,5 +1,5 @@
+
 'use client';
-import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -10,42 +10,10 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { ShieldAlert } from 'lucide-react';
-import type { Alert, Device } from '@/lib/types';
+import type { Alert } from '@/lib/types';
 import { format } from 'date-fns';
 
-export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-
-  useEffect(() => {
-    async function fetchDeviceData() {
-      try {
-        const response = await fetch('/api/devices');
-        const devices: Device[] = await response.json();
-        
-        const generatedAlerts = devices
-          .filter(d => d.status === 'Critical' || d.status === 'Warning')
-          .map(d => ({
-            id: `alert-${d.id}-${d.timestamp}`,
-            deviceId: d.id,
-            deviceName: d.name,
-            message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
-            timestamp: d.timestamp,
-            severity: d.status as 'Critical' | 'Warning'
-          }))
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-        setAlerts(generatedAlerts);
-      } catch (error) {
-        console.error("Failed to fetch alerts:", error);
-      }
-    }
-
-    fetchDeviceData();
-    const intervalId = setInterval(fetchDeviceData, 5000); // Refresh every 5 seconds
-
-    return () => clearInterval(intervalId);
-  }, []);
-
+export default function AlertsPage({ alerts }: { alerts: Alert[] }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -67,7 +35,7 @@ export default function AlertsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {alerts.length > 0 ? alerts.map((alert) => (
+            {alerts && alerts.length > 0 ? alerts.map((alert) => (
               <TableRow key={alert.id}>
                 <TableCell>
                   <Badge

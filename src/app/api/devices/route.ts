@@ -1,3 +1,4 @@
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -23,44 +24,28 @@ export async function POST(request: Request) {
   
   try {
     const json = await request.json();
-    const data = deviceDataSchema.parse(json);
     
-    const deviceRef = adminDb.collection('devices').doc(data.id);
-    const firestoreTimestamp = Timestamp.now();
-    const newReading = { coLevel: data.coLevel, timestamp: firestoreTimestamp };
+    // This handles both the Python script's payload and any other format
+    const firestoreTimestamp = json.timestamp && json.timestamp._seconds ? 
+        Timestamp.fromMillis(json.timestamp._seconds * 1000) : 
+        Timestamp.now();
 
-    const deviceSnap = await deviceRef.get();
-
-    if (!deviceSnap.exists) {
-      // --- Device is NEW, CREATE it --- (Note: No redundant 'id' field)
-       await deviceRef.set({
-        name: data.name,
-        location: data.location.name,
-        coords: { lat: data.location.lat, lng: data.location.lng },
-        status: data.status,
-        coLevel: data.coLevel,
+    // Directly use the parsed data, assuming it's valid for this simple forwarder.
+    const payload = {
+        name: json.name,
+        location: {
+            name: json.location.name,
+            lat: json.location.lat,
+            lng: json.location.lng,
+        },
+        status: json.status,
+        coLevel: json.coLevel,
         timestamp: firestoreTimestamp,
-        historicalData: [newReading], // Start with the first reading
-      });
-      console.log(`Successfully created new device: ${data.id}`);
-    } else {
-      // --- Device EXISTS, UPDATE it ---
-      const existingData = deviceSnap.data() || {};
-      // Keep the historical data to the last 19 readings
-      const historicalData = (existingData.historicalData || []).slice(0, 19);
-
-      await deviceRef.update({
-        status: data.status,
-        coLevel: data.coLevel,
-        timestamp: firestoreTimestamp,
-        name: data.name,
-        location: data.location.name,
-        coords: { lat: data.location.lat, lng: data.location.lng },
-        historicalData: [newReading, ...historicalData],
-      });
-      console.log(`Successfully updated device: ${data.id}`);
-    }
-
+    };
+    
+    const deviceRef = adminDb.collection('devices').doc(json.id);
+    await deviceRef.set(payload, { merge: true });
+    
     return NextResponse.json({ message: 'Data received successfully' });
 
   } catch (error) {
@@ -89,22 +74,26 @@ export async function GET() {
         const devices: Device[] = snapshot.docs.map((doc: { data: () => any; id: any; }) => {
             const data = doc.data();
             
-            // Safely convert Firestore Timestamps to ISO strings for JSON serialization
             const timestampStr = data.timestamp?.toDate?.().toISOString() || new Date().toISOString();
-            const historicalData = (data.historicalData || []).map((reading: any) => ({
-                ...reading,
-                timestamp: reading.timestamp?.toDate?.().toISOString(),
-            }));
+            
+            let locationName = 'Unknown Location';
+            let coords = { lat: 0, lng: 0 };
+            if (typeof data.location === 'string') {
+                locationName = data.location;
+            } else if (data.location && typeof data.location === 'object') {
+                locationName = data.location.name || 'Unknown Location';
+                coords = { lat: data.location.lat || 0, lng: data.location.lng || 0 };
+            }
 
             return {
-                id: doc.id, // Use the document ID, not data.id
+                id: doc.id,
                 name: data.name || 'Unknown Device',
-                location: data.location || 'Unknown Location',
-                coords: data.coords || { lat: 0, lng: 0 },
+                location: locationName,
+                coords: coords,
                 status: data.status || 'inactive',
                 coLevel: data.coLevel || 0,
                 timestamp: timestampStr,
-                historicalData: historicalData,
+                historicalData: [{ coLevel: data.coLevel, timestamp: timestampStr }],
             };
         });
 

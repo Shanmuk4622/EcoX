@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
 import type { Device, Alert } from '@/lib/types';
@@ -17,6 +17,7 @@ import { DevicesTable } from '@/components/devices-table';
 import { MapView } from '@/components/map-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DeviceDetailsCard } from '@/components/device-details-card';
+import AlertsPage from './alerts/page';
 
 export default function DashboardPage() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -32,85 +33,82 @@ export default function DashboardPage() {
       setLoading(false);
       return;
     }
-    const q = query(collection(db, 'devices'), orderBy('name'));
+    const q = query(collection(db, 'devices'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const incomingDevices: { [id: string]: Omit<Device, 'historicalData'> } = {};
+      setDevices(prevDevices => {
+        const updatedDevices: Device[] = [...prevDevices];
+        const deviceIndexMap: { [id: string]: number } = {};
+        updatedDevices.forEach((d, i) => { deviceIndexMap[d.id] = i; });
 
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        let timestampStr = new Date().toISOString();
-        if (data.timestamp) {
+        querySnapshot.docChanges().forEach((change) => {
+          const doc = change.doc;
+          const data = doc.data();
+
+          let timestampStr = new Date().toISOString();
+          if (data.timestamp) {
             if (data.timestamp instanceof Timestamp) {
                 timestampStr = data.timestamp.toDate().toISOString();
             } else if (typeof data.timestamp === 'string') {
                 timestampStr = data.timestamp;
             }
-        }
-        
-        let locationName = 'Unknown Location';
-        if (typeof data.location === 'string') {
-            locationName = data.location;
-        } else if (typeof data.location === 'object' && data.location.name) {
-            locationName = data.location.name;
-        }
+          }
+          
+          let locationName = 'Unknown Location';
+          let coords = { lat: 0, lng: 0 };
+          if (typeof data.location === 'string') {
+              locationName = data.location;
+          } else if (data.location && typeof data.location === 'object') {
+              locationName = data.location.name || 'Unknown Location';
+              coords = { lat: data.location.lat || 0, lng: data.location.lng || 0 };
+          }
+          
+          const newReading = { coLevel: data.coLevel || 0, timestamp: timestampStr };
+          const deviceId = doc.id;
+          
+          if (change.type === 'added' || !(deviceId in deviceIndexMap)) {
+            const newDevice: Device = {
+              id: deviceId,
+              name: data.name || 'Unknown Device',
+              location: locationName,
+              coords: coords,
+              status: data.status || 'inactive',
+              coLevel: newReading.coLevel,
+              timestamp: newReading.timestamp,
+              historicalData: [newReading],
+            };
+            updatedDevices.push(newDevice);
+          } else if (change.type === 'modified') {
+            const index = deviceIndexMap[deviceId];
+            const existingDevice = updatedDevices[index];
 
-        const deviceData = {
-          id: doc.id,
-          name: data.name || 'Unknown Device',
-          location: locationName,
-          coords: data.coords || { lat: 0, lng: 0},
-          status: data.status || 'inactive',
-          coLevel: data.coLevel || 0,
-          timestamp: timestampStr,
-        };
-        incomingDevices[doc.id] = deviceData;
-      });
+            if (existingDevice.timestamp !== newReading.timestamp) {
+              const updatedDevice = {
+                ...existingDevice,
+                coLevel: newReading.coLevel,
+                status: data.status || 'inactive',
+                timestamp: newReading.timestamp,
+                name: data.name || 'Unknown Device',
+                location: locationName,
+                coords: coords,
+                historicalData: [newReading, ...existingDevice.historicalData].slice(0, 20),
+              };
+              updatedDevices[index] = updatedDevice;
 
-      setDevices(prevDevices => {
-        const updatedDevices = prevDevices.map(d => ({...d})); // Create shallow copies
-        const existingDeviceIds = new Set(updatedDevices.map(d => d.id));
-
-        // Update existing devices and add new readings to their history
-        updatedDevices.forEach(device => {
-          if (incomingDevices[device.id]) {
-            const newReading = incomingDevices[device.id];
-            // If timestamp is new, add to history
-            if (device.timestamp !== newReading.timestamp) {
-              device.coLevel = newReading.coLevel;
-              device.status = newReading.status;
-              device.timestamp = newReading.timestamp;
-              device.historicalData = [
-                { coLevel: newReading.coLevel, timestamp: newReading.timestamp },
-                ...device.historicalData
-              ].slice(0, 20); // Keep last 20 readings
+              if (selectedDevice?.id === deviceId) {
+                setSelectedDevice(updatedDevice);
+              }
+              checkForAnomalies([updatedDevice]);
             }
-            delete incomingDevices[device.id];
           }
         });
         
-        // Add completely new devices
-        Object.values(incomingDevices).forEach(newDevice => {
-            const fullDevice: Device = {
-                ...newDevice,
-                historicalData: [{coLevel: newDevice.coLevel, timestamp: newDevice.timestamp}]
-            }
-            updatedDevices.push(fullDevice);
-        });
-
         updatedDevices.sort((a, b) => a.name.localeCompare(b.name));
         
         if (updatedDevices.length > 0 && !selectedDevice) {
-            setSelectedDevice(updatedDevices[0]);
-        } else if (selectedDevice) {
-            // Update selected device state if it exists
-            const updatedSelected = updatedDevices.find(d => d.id === selectedDevice.id);
-            if (updatedSelected) {
-                setSelectedDevice(updatedSelected);
-            }
+          setSelectedDevice(updatedDevices[0]);
         }
-        
-        checkForAnomalies(updatedDevices);
+
         return updatedDevices;
       });
       
@@ -126,8 +124,8 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  async function checkForAnomalies(currentDevices: Device[]) {
-    for (const device of currentDevices) {
+  async function checkForAnomalies(targetDevices: Device[]) {
+    for (const device of targetDevices) {
       if (device.historicalData && device.historicalData.length > 1) {
         const latestReading = device.historicalData[0];
         try {
@@ -170,7 +168,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (devices.length > 0) {
         const statusAlerts = devices
-          .filter(d => d.status === 'Critical' || d.status === 'Warning')
+          .filter(d => (d.status === 'Critical' || d.status === 'Warning'))
           .map(d => ({
               id: `alert-${d.id}-${d.timestamp}`,
               deviceId: d.id,
@@ -184,6 +182,8 @@ export default function DashboardPage() {
         const alertIds = new Set(prevAlerts.map(a => a.id));
         const newStatusAlerts = statusAlerts.filter(a => !alertIds.has(a.id));
         
+        if (newStatusAlerts.length === 0) return prevAlerts;
+
         const allAlerts = [...newStatusAlerts, ...prevAlerts]
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
             .slice(0, 20);
@@ -200,7 +200,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          Displaying live data from your Raspberry Pi via Firestore.
+          Displaying live data from your sensors via Firestore.
         </p>
       </div>
 
@@ -228,29 +228,27 @@ export default function DashboardPage() {
         </div>
       ) : devices.length > 0 ? (
         <Tabs defaultValue="overview">
-            <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsList className="grid w-full grid-cols-4 mb-4">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="map">Map</TabsTrigger>
                 <TabsTrigger value="devices">Devices</TabsTrigger>
+                <TabsTrigger value="map">Map</TabsTrigger>
+                <TabsTrigger value="alerts">Alerts</TabsTrigger>
             </TabsList>
             <TabsContent value="overview">
                 <div className="flex flex-col gap-4">
                     <OverviewCards devices={devices} alerts={alerts} />
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                         <div className="lg:col-span-4">
-                        <COLevelsChart devices={devices} />
+                            <COLevelsChart devices={devices} />
                         </div>
                         <div className="lg:col-span-3 grid gap-4">
-                        <DeviceStatusPieChart devices={devices} />
-                        <RecentAlerts alerts={alerts} />
+                            <DeviceStatusPieChart devices={devices} />
+                            <RecentAlerts alerts={alerts} />
                         </div>
                     </div>
                 </div>
             </TabsContent>
-            <TabsContent value="map">
-                <MapView devices={devices}/>
-            </TabsContent>
-            <TabsContent value="devices">
+             <TabsContent value="devices">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-1">
                         <DevicesTable devices={devices} onSelectDevice={setSelectedDevice} selectedDevice={selectedDevice} />
@@ -259,6 +257,12 @@ export default function DashboardPage() {
                         <DeviceDetailsCard device={selectedDevice} />
                     </div>
                 </div>
+            </TabsContent>
+            <TabsContent value="map">
+                <MapView devices={devices}/>
+            </TabsContent>
+            <TabsContent value="alerts">
+                <AlertsPage alerts={alerts}/>
             </TabsContent>
         </Tabs>
       ) : !error && (
