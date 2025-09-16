@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
-import type { Device, Alert, HistoricalData } from '@/lib/types';
+import type { Device, Alert } from '@/lib/types';
 import { OverviewCards } from '@/components/overview-cards';
 import { COLevelsChart } from '@/components/co-levels-chart';
 import { DeviceStatusPieChart } from '@/components/device-status-pie-chart';
@@ -26,9 +26,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!db) {
-        setError("Firestore client is not available. Please check your Firebase configuration.");
-        setLoading(false);
-        return;
+      setError("Firestore is not configured. Please add your Firebase project configuration to your environment variables.");
+      setLoading(false);
+      return;
     }
     const q = query(collection(db, 'devices'), orderBy('name'));
 

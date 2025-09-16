@@ -1,22 +1,30 @@
+
 import type { ServiceAccount } from 'firebase-admin';
 import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 
-const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
-  ? (JSON.parse(
-      process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string
-    ) as ServiceAccount)
-  : undefined;
+let adminDb: Firestore | undefined;
 
-const app =
-  getApps().length > 0
-    ? getApp()
-    : initializeApp(
-        serviceAccountKey
-          ? { credential: cert(serviceAccountKey) }
-          : undefined
-      );
+try {
+  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY
+    ? (JSON.parse(
+        process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string
+      ) as ServiceAccount)
+    : undefined;
 
-const adminDb = getFirestore(app);
+  if (getApps().length === 0) {
+    initializeApp(
+      serviceAccountKey
+        ? { credential: cert(serviceAccountKey) }
+        : undefined
+    );
+  }
+  
+  adminDb = getFirestore(getApp());
+
+} catch (error) {
+  console.error("Firebase Admin SDK initialization error:", error);
+  // The API routes will handle the case where adminDb is not initialized.
+}
 
 export { adminDb };
