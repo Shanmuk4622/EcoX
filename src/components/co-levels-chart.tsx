@@ -52,7 +52,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
     
     // Combine historical data from all devices
     const allReadings = devices.flatMap(d => 
-        d.historicalData.map(h => ({
+        (d.historicalData || []).map(h => ({
             ...h,
             deviceId: d.id,
             deviceName: d.name,
@@ -68,8 +68,9 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         const record: {[key: string]: any} = { time: format(new Date(time), 'HH:mm:ss') };
         devices.forEach(device => {
             const reading = allReadings.find(r => r.deviceId === device.id && r.time === time);
-            // Use the reading's coLevel if it exists, otherwise it will be undefined
-            record[device.name] = reading ? reading.coLevel : undefined;
+            // Use the reading's coLevel if it exists, otherwise it will be undefined (or null)
+            // Recharts 'connectNulls' will handle connecting lines over these gaps.
+            record[device.name] = reading ? reading.coLevel : null;
         });
         return record;
     });
@@ -123,7 +124,8 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                     dataKey={device.name}
                     stroke={COLORS[index % COLORS.length]}
                     strokeWidth={2}
-                    dot={false}
+                    dot={chartData.length < 2} // Show dots only if there is a single data point
+                    activeDot={{ r: 8 }}
                     connectNulls={true} // This will connect lines over missing data points
                 />
               ))}
