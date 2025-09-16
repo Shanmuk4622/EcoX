@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminDb } from '@/lib/firebase';
 import type { Device } from '@/lib/types';
+import type { Timestamp } from 'firebase-admin/firestore';
 
 const deviceDataSchema = z.object({
   id: z.string(),
@@ -17,6 +18,11 @@ const deviceDataSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (!adminDb) {
+      console.error('[API POST ERROR] Firestore is not initialized.');
+      return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });
+  }
+  
   try {
     const json = await request.json();
     const data = deviceDataSchema.parse(json);
@@ -29,7 +35,7 @@ export async function POST(request: Request) {
 
     if (!deviceSnap.exists) {
       // --- Device is NEW, CREATE it ---
-      await deviceRef.set({
+       await deviceRef.set({
         id: data.id,
         name: data.name,
         location: data.location.name,
@@ -71,18 +77,58 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
+    if (!adminDb) {
+        console.error('[API GET ERROR] Firestore is not initialized.');
+        return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });
+    }
     try {
-        if (!adminDb || typeof adminDb.collection !== 'function') {
-            console.error('[API GET ERROR] Firestore is not initialized.');
-            return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });
-        }
         const snapshot = await adminDb.collection('devices').get();
         if (snapshot.empty) {
             console.log('No devices found in Firestore.');
             return NextResponse.json([]);
         }
-        const devices = snapshot.docs.map(doc => doc.data() as Device);
+        
+        const devices = snapshot.docs.map(doc => {
+            const data = doc.data();
+            
+            let timestampStr = new Date().toISOString();
+            if (data.timestamp) {
+                if (typeof data.timestamp === 'string') {
+                    timestampStr = data.timestamp;
+                } else if (data.timestamp.toDate) { // Handle Firestore Timestamp
+                    timestampStr = data.timestamp.toDate().toISOString();
+                }
+            }
+
+            // Handle nested location object vs. simple string
+            let locationName = 'Unknown Location';
+            let coords = { lat: 0, lng: 0 };
+            if (typeof data.location === 'string') {
+                locationName = data.location;
+            } else if (typeof data.location === 'object' && data.location.name) {
+                locationName = data.location.name;
+            }
+            
+            if (data.coords) {
+                coords = data.coords;
+            } else if (typeof data.location === 'object' && data.location.lat && data.location.lng) {
+                coords = { lat: data.location.lat, lng: data.location.lng };
+            }
+
+            return {
+                id: data.id,
+                name: data.name,
+                location: locationName,
+                coords: coords,
+                status: data.status,
+                coLevel: data.coLevel,
+                timestamp: timestampStr,
+                historicalData: data.historicalData || []
+            } as Device;
+        });
+
         return NextResponse.json(devices);
+
     } catch (error) {
         console.error('[API GET ERROR]', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect } from 'react';
 import {
@@ -41,35 +42,24 @@ const mapStyles = [
   },
 ];
 
+interface MapViewProps {
+    devices: Device[];
+}
 
-export function MapView() {
-  const [devices, setDevices] = useState<Device[]>([]);
+export function MapView({ devices }: MapViewProps) {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [center, setCenter] = useState({ lat: 40.7128, lng: -74.006 });
 
   useEffect(() => {
-    async function fetchDevices() {
-      try {
-        const response = await fetch('/api/devices');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+    if (devices.length > 0 && !selectedDevice) {
+        const totalLat = devices.reduce((sum, d) => sum + (d.coords?.lat || 0), 0);
+        const totalLng = devices.reduce((sum, d) => sum + (d.coords?.lng || 0), 0);
+        const validDevices = devices.filter(d => d.coords?.lat && d.coords?.lng);
+        if (validDevices.length > 0) {
+            setCenter({ lat: totalLat / validDevices.length, lng: totalLng / validDevices.length });
         }
-        const data: Device[] = await response.json();
-        setDevices(data);
-        if (data.length > 0 && !selectedDevice) { // Don't recenter if a device is selected
-            const totalLat = data.reduce((sum, d) => sum + d.coords.lat, 0);
-            const totalLng = data.reduce((sum, d) => sum + d.coords.lng, 0);
-            setCenter({ lat: totalLat / data.length, lng: totalLng / data.length });
-        }
-      } catch (e) {
-        console.error('Failed to fetch devices:', e);
-      }
     }
-
-    fetchDevices();
-    const interval = setInterval(fetchDevices, 5000);
-    return () => clearInterval(interval);
-  }, [selectedDevice]);
+  }, [devices, selectedDevice]);
 
   const handleMarkerClick = (device: Device) => {
     setSelectedDevice(device);
@@ -106,16 +96,18 @@ export function MapView() {
             disableDefaultUI={true}
           >
             {devices.map((device) => (
-              <AdvancedMarker
-                key={device.id}
-                position={device.coords}
-                onClick={() => handleMarkerClick(device)}
-              >
-                <Pin {...getPinColor(device.status)} />
-              </AdvancedMarker>
+              device.coords && (
+                <AdvancedMarker
+                  key={device.id}
+                  position={device.coords}
+                  onClick={() => handleMarkerClick(device)}
+                >
+                  <Pin {...getPinColor(device.status)} />
+                </AdvancedMarker>
+              )
             ))}
 
-            {selectedDevice && (
+            {selectedDevice && selectedDevice.coords && (
               <InfoWindow
                 position={selectedDevice.coords}
                 onCloseClick={() => setSelectedDevice(null)}

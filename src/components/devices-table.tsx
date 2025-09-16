@@ -1,5 +1,5 @@
+
 'use client';
-import { useState, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -31,24 +31,11 @@ import { MoreHorizontal, PlusCircle } from 'lucide-react';
 import type { Device } from '@/lib/types';
 import { format } from 'date-fns';
 
-export function DevicesTable() {
-  const [devices, setDevices] = useState<Device[]>([]);
+interface DevicesTableProps {
+  devices: Device[];
+}
 
-  useEffect(() => {
-    async function fetchDevices() {
-      try {
-        const response = await fetch('/api/devices');
-        const data = await response.json();
-        setDevices(data);
-      } catch (error) {
-        console.error('Failed to fetch devices', error);
-      }
-    }
-    fetchDevices();
-    const intervalId = setInterval(fetchDevices, 5000);
-    return () => clearInterval(intervalId);
-  }, []);
-
+export function DevicesTable({ devices }: DevicesTableProps) {
   const getStatusBadge = (status: Device['status']) => {
     switch (status) {
       case 'Normal':
@@ -82,7 +69,7 @@ export function DevicesTable() {
             <SheetHeader>
               <SheetTitle>Add New Device</SheetTitle>
               <SheetDescription>
-                Fill in the details for the new sensor device.
+                Fill in the details for the new sensor device. This feature is a placeholder.
               </SheetDescription>
             </SheetHeader>
             <div className="grid gap-4 py-4">
