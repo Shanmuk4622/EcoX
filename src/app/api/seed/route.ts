@@ -1,7 +1,7 @@
 
 'use server';
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
 import { initialDevices } from '@/lib/data';
 
 export async function GET() {

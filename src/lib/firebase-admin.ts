@@ -6,7 +6,6 @@ let adminDb: Firestore | undefined;
 
 function initializeAdminApp(): App | null {
   if (getApps().length > 0) {
-    // Return the existing app if it has already been initialized
     return getApps()[0];
   }
 
@@ -19,13 +18,27 @@ function initializeAdminApp(): App | null {
     return null;
   }
 
+  let serviceAccount;
   try {
-    const serviceAccount = JSON.parse(serviceAccountKey);
+    serviceAccount = JSON.parse(serviceAccountKey);
+  } catch (e) {
+    try {
+      const decodedKey = Buffer.from(serviceAccountKey, 'base64').toString('utf-8');
+      serviceAccount = JSON.parse(decodedKey);
+    } catch (e2) {
+      console.error(
+        'Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY. Make sure it is a valid JSON string or a base64 encoded JSON string.'
+      );
+      return null;
+    }
+  }
+
+  try {
     return initializeApp({
       credential: cert(serviceAccount),
     });
   } catch (error) {
-    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY. Make sure it is a valid JSON string.', error);
+    console.error('Firebase Admin SDK initialization error:', error);
     return null;
   }
 }
