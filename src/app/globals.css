@@ -4,30 +4,30 @@
 
 @layer base {
   :root {
-    --background: 94 100% 92%;
-    --foreground: 131 21% 25%;
-    --card: 94 100% 97%;
-    --card-foreground: 131 21% 25%;
-    --popover: 94 100% 97%;
-    --popover-foreground: 131 21% 25%;
-    --primary: 135 21% 47%;
+    --background: 100 100% 95%; /* Lighter green background */
+    --foreground: 130 25% 20%; /* Darker green text */
+    --card: 100 90% 98%;
+    --card-foreground: 130 25% 20%;
+    --popover: 100 90% 98%;
+    --popover-foreground: 130 25% 20%;
+    --primary: 135 45% 45%; /* More vibrant primary green */
     --primary-foreground: 94 100% 98%;
-    --secondary: 135 20% 88%;
+    --secondary: 135 30% 90%;
     --secondary-foreground: 131 21% 31%;
-    --muted: 135 20% 88%;
+    --muted: 135 30% 90%;
     --muted-foreground: 131 15% 45%;
-    --accent: 131 21% 31%;
+    --accent: 131 40% 35%; /* Darker accent green */
     --accent-foreground: 94 100% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 135 20% 80%;
     --input: 135 20% 85%;
-    --ring: 135 21% 47%;
-    --chart-1: 135 21% 47%;
-    --chart-2: 131 21% 31%;
-    --chart-3: 135 20% 60%;
-    --chart-4: 131 20% 45%;
-    --chart-5: 135 15% 35%;
+    --ring: 135 45% 45%;
+    --chart-1: 135 45% 45%;
+    --chart-2: 131 40% 35%;
+    --chart-3: 135 30% 60%;
+    --chart-4: 131 25% 50%;
+    --chart-5: 135 20% 40%;
     --radius: 0.5rem;
     --sidebar-background: 94 80% 95%;
     --sidebar-foreground: 131 21% 25%;
@@ -45,24 +45,24 @@
     --card-foreground: 94 80% 88%;
     --popover: 130 10% 12%;
     --popover-foreground: 94 80% 88%;
-    --primary: 135 21% 47%;
+    --primary: 135 45% 55%;
     --primary-foreground: 94 100% 98%;
     --secondary: 130 10% 15%;
     --secondary-foreground: 94 80% 88%;
     --muted: 130 10% 15%;
     --muted-foreground: 94 20% 65%;
-    --accent: 131 21% 31%;
+    --accent: 131 40% 40%;
     --accent-foreground: 94 100% 98%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
     --border: 130 10% 17%;
     --input: 130 10% 17%;
-    --ring: 135 21% 47%;
-    --chart-1: 135 21% 47%;
-    --chart-2: 131 21% 31%;
-    --chart-3: 135 20% 60%;
-    --chart-4: 131 20% 45%;
-    --chart-5: 135 15% 35%;
+    --ring: 135 45% 55%;
+    --chart-1: 135 45% 55%;
+    --chart-2: 131 40% 40%;
+    --chart-3: 135 30% 70%;
+    --chart-4: 131 25% 55%;
+    --chart-5: 135 20% 45%;
     --sidebar-background: 130 10% 10%;
     --sidebar-foreground: 94 80% 88%;
     --sidebar-primary: 135 21% 47%;
