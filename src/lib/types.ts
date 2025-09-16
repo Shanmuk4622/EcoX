@@ -19,6 +19,7 @@ export type Alert = {
   id: string;
   deviceId: string;
   deviceName: string;
+  location?: string;
   message: string;
   timestamp: string;
   severity: 'Warning' | 'Critical';

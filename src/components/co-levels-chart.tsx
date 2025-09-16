@@ -68,7 +68,8 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         const record: {[key: string]: any} = { time: format(new Date(time), 'HH:mm:ss') };
         devices.forEach(device => {
             const reading = allReadings.find(r => r.deviceId === device.id && r.time === time);
-            record[device.name] = reading ? reading.coLevel : null;
+            // Use the reading's coLevel if it exists, otherwise it will be undefined
+            record[device.name] = reading ? reading.coLevel : undefined;
         });
         return record;
     });
@@ -123,7 +124,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                     stroke={COLORS[index % COLORS.length]}
                     strokeWidth={2}
                     dot={false}
-                    connectNulls // This will connect lines over missing data points
+                    connectNulls={true} // This will connect lines over missing data points
                 />
               ))}
             </LineChart>

@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard,
-  Map,
   Router,
+  Map,
   ShieldAlert,
 } from 'lucide-react';
 
@@ -17,14 +17,16 @@ import {
 } from '@/components/ui/sidebar';
 
 const links = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/devices', label: 'Devices', icon: Router },
-  { href: '/dashboard/map', label: 'Map', icon: Map },
-  { href: '/dashboard/alerts', label: 'Alerts', icon: ShieldAlert },
+  { href: '/dashboard?tab=overview', tab: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard?tab=devices', tab: 'devices', label: 'Devices', icon: Router },
+  { href: '/dashboard?tab=map', tab: 'map', label: 'Map', icon: Map },
+  { href: '/dashboard?tab=alerts', tab: 'alerts', label: 'Alerts', icon: ShieldAlert },
 ];
 
 export function MainNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
 
   return (
     <SidebarMenu>
@@ -32,7 +34,7 @@ export function MainNav() {
         <SidebarMenuItem key={link.href}>
           <Link href={link.href}>
             <SidebarMenuButton
-              isActive={pathname === link.href}
+              isActive={pathname === '/dashboard' && activeTab === link.tab}
               className="w-full"
               tooltip={link.label}
             >

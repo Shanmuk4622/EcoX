@@ -18,7 +18,7 @@ export default function AlertsPage({ alerts }: { alerts: Alert[] }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">System Alerts</h2>
+          <h2 className="text-2xl font-bold tracking-tight">System Alerts Log</h2>
           <p className="text-muted-foreground">
             A log of all warnings and critical alerts from your devices.
           </p>
@@ -30,6 +30,7 @@ export default function AlertsPage({ alerts }: { alerts: Alert[] }) {
             <TableRow>
               <TableHead>Severity</TableHead>
               <TableHead>Device</TableHead>
+              <TableHead>Location</TableHead>
               <TableHead>Message</TableHead>
               <TableHead>Timestamp</TableHead>
             </TableRow>
@@ -47,12 +48,13 @@ export default function AlertsPage({ alerts }: { alerts: Alert[] }) {
                   </Badge>
                 </TableCell>
                 <TableCell className="font-medium">{alert.deviceName}</TableCell>
+                <TableCell>{alert.location || 'N/A'}</TableCell>
                 <TableCell>{alert.message}</TableCell>
                 <TableCell>{format(new Date(alert.timestamp), 'PPpp')}</TableCell>
               </TableRow>
             )) : (
                 <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                         No alerts to display. All systems normal.
                     </TableCell>
                 </TableRow>

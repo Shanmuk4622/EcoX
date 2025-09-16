@@ -18,6 +18,7 @@ import { MapView } from '@/components/map-view';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DeviceDetailsCard } from '@/components/device-details-card';
 import AlertsPage from './alerts/page';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -26,6 +27,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const { toast } = useToast();
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const activeTab = searchParams.get('tab') || 'overview';
+
+  const handleTabChange = (value: string) => {
+    router.push(`/dashboard?tab=${value}`);
+  };
 
   useEffect(() => {
     if (!db) {
@@ -50,6 +59,8 @@ export default function DashboardPage() {
                 timestampStr = data.timestamp.toDate().toISOString();
             } else if (typeof data.timestamp === 'string') {
                 timestampStr = data.timestamp;
+            } else if (data.timestamp._seconds) { // Handle Python's firestore.SERVER_TIMESTAMP format
+                timestampStr = new Date(data.timestamp._seconds * 1000).toISOString();
             }
         }
         
@@ -217,7 +228,7 @@ export default function DashboardPage() {
             <p className="text-muted-foreground">Waiting for live sensor data from Firestore...</p>
         </div>
       ) : devices.length > 0 ? (
-        <Tabs defaultValue="overview">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="devices">Devices</TabsTrigger>
