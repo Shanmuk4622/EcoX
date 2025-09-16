@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -7,6 +8,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   CartesianGrid,
 } from 'recharts';
 import {
@@ -23,38 +25,60 @@ interface COLevelsChartProps {
   devices: Device[];
 }
 
-export function COLevelsChart({ devices }: COLevelsChartProps) {
-  const device = devices[0];
-  
-  if (!device || !device.historicalData || device.historicalData.length === 0) {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>CO Level Monitoring</CardTitle>
-                <CardDescription>
-                Awaiting data...
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="h-[300px] flex items-center justify-center">
-                <p className="text-muted-foreground">No device data available to display chart.</p>
-            </CardContent>
-        </Card>
-    );
-  }
+const COLORS = [
+    'hsl(var(--chart-1))',
+    'hsl(var(--chart-2))',
+    'hsl(var(--chart-3))',
+    'hsl(var(--chart-4))',
+    'hsl(var(--chart-5))',
+];
 
-  const chartData = [...device.historicalData]
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    .map((d) => ({
-      ...d,
-      time: format(new Date(d.timestamp), 'HH:mm:ss'),
-    }));
+export function COLevelsChart({ devices }: COLevelsChartProps) {
+    if (!devices || devices.length === 0 || devices.every(d => !d.historicalData || d.historicalData.length === 0)) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>CO Level Monitoring</CardTitle>
+                    <CardDescription>
+                        Awaiting data...
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="h-[300px] flex items-center justify-center">
+                    <p className="text-muted-foreground">No device data available to display chart.</p>
+                </CardContent>
+            </Card>
+        );
+    }
+    
+    // Combine historical data from all devices
+    const allReadings = devices.flatMap(d => 
+        d.historicalData.map(h => ({
+            ...h,
+            deviceId: d.id,
+            deviceName: d.name,
+            time: new Date(h.timestamp).getTime()
+        }))
+    );
+    
+    // Get unique timestamps and sort them
+    const uniqueTimestamps = [...new Set(allReadings.map(r => r.time))].sort((a,b) => a - b);
+
+    // Create the data structure for the chart
+    const chartData = uniqueTimestamps.map(time => {
+        const record: {[key: string]: any} = { time: format(new Date(time), 'HH:mm:ss') };
+        devices.forEach(device => {
+            const reading = allReadings.find(r => r.deviceId === device.id && r.time === time);
+            record[device.name] = reading ? reading.coLevel : null;
+        });
+        return record;
+    });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>CO Level Monitoring</CardTitle>
+        <CardTitle>Live CO Level Monitoring</CardTitle>
         <CardDescription>
-          Live CO levels (ppm) for device: {device.name}
+          Real-time CO levels (ppm) for all devices.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -90,13 +114,18 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                   borderColor: 'hsl(var(--border))',
                 }}
               />
-              <Line
-                type="monotone"
-                dataKey="coLevel"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
-                dot={false}
-              />
+              <Legend />
+              {devices.map((device, index) => (
+                <Line
+                    key={device.id}
+                    type="monotone"
+                    dataKey={device.name}
+                    stroke={COLORS[index % COLORS.length]}
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls // This will connect lines over missing data points
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </div>

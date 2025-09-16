@@ -5,7 +5,7 @@ const now = new Date();
 
 const generateHistoricalData = (baseLevel: number) => {
   const data = [];
-  for (let i = 20; i > 0; i--) {
+  for (let i = 5; i > 0; i--) {
     const timestamp = new Date(now.getTime() - i * 60000).toISOString();
     const coLevel = parseFloat(
       (baseLevel + Math.random() * 5 - 2.5).toFixed(2)
