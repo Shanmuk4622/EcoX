@@ -1,3 +1,4 @@
+
 'use client';
 import { Pie, PieChart, ResponsiveContainer, Cell, Tooltip } from 'recharts';
 import {
@@ -31,7 +32,7 @@ export function DeviceStatusPieChart({ devices }: DeviceStatusPieChartProps) {
   }));
 
   return (
-    <Card>
+    <Card className="bg-teal-50 dark:bg-teal-900/30 border-teal-200 dark:border-teal-800">
       <CardHeader>
         <CardTitle>Device Status Distribution</CardTitle>
         <CardDescription>

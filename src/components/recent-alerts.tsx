@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -33,7 +34,7 @@ export function RecentAlerts({ alerts }: RecentAlertsProps) {
         }
     }
   return (
-    <Card>
+    <Card className="bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800">
       <CardHeader>
         <CardTitle>Recent Alerts</CardTitle>
         <CardDescription>

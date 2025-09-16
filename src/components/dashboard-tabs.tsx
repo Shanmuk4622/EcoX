@@ -34,16 +34,14 @@ export function DashboardTabs({ devices, alerts, onSelectDevice, selectedDevice 
       <TabsContent value="overview">
         <div className="flex flex-col gap-4">
           <OverviewCards devices={devices} alerts={alerts} />
-          <div className="bg-muted/50 p-4 rounded-lg border">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <div className="lg:col-span-4">
-                <COLevelsChart devices={devices} />
-                </div>
-                <div className="lg:col-span-3 grid gap-4">
-                <DeviceStatusPieChart devices={devices} />
-                <RecentAlerts alerts={alerts} />
-                </div>
-            </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+              <div className="lg:col-span-4">
+              <COLevelsChart devices={devices} />
+              </div>
+              <div className="lg:col-span-3 grid gap-4">
+              <DeviceStatusPieChart devices={devices} />
+              <RecentAlerts alerts={alerts} />
+              </div>
           </div>
         </div>
       </TabsContent>

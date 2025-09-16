@@ -36,7 +36,7 @@ const COLORS = [
 export function COLevelsChart({ devices }: COLevelsChartProps) {
     if (!devices || devices.length === 0) {
         return (
-            <Card>
+            <Card className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800">
                 <CardHeader>
                     <CardTitle>CO Level Monitoring</CardTitle>
                     <CardDescription>
@@ -50,42 +50,52 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         );
     }
     
-    // Combine historical data from all devices, making sure it's sorted
-    const allReadings = devices.flatMap(d => 
-        (d.historicalData || []).map(h => ({
-            ...h,
-            deviceId: d.id,
-            deviceName: d.name,
-            time: new Date(h.timestamp).getTime()
+    const chartData = devices.flatMap(device => 
+        device.historicalData.map(d => ({
+            time: new Date(d.timestamp).getTime(),
+            [device.name]: d.coLevel
         }))
-    ).sort((a,b) => a.time - b.time);
+    );
 
-    // Get unique timestamps from all readings
-    const uniqueTimestamps = [...new Set(allReadings.map(r => r.time))];
+    // This is a bit tricky. We need to merge all data points by time.
+    const mergedData = chartData.reduce((acc, curr) => {
+        const time = new Date(curr.time).toLocaleTimeString();
+        let existing = acc.find(item => item.time === time);
+        if (existing) {
+            Object.assign(existing, curr);
+        } else {
+            acc.push({ ...curr, time });
+        }
+        return acc;
+    }, [] as any[]).sort((a,b) => new Date('1970-01-01 ' + a.time).getTime() - new Date('1970-01-01 ' + b.time).getTime());
 
-    // Create the data structure for the chart
-    const chartData = uniqueTimestamps.map(time => {
-        const record: {[key: string]: any} = { time: format(new Date(time), 'HH:mm:ss') };
-        devices.forEach(device => {
-            // Find the reading for this device at this specific time
-            const reading = allReadings.find(r => r.deviceId === device.id && r.time === time);
-            // If a reading exists, use its coLevel. Otherwise, it's null.
-            record[device.name] = reading ? reading.coLevel : null;
-        });
-        return record;
-    });
+    const allHistoricalData = devices.flatMap(d => d.historicalData.map(h => ({ deviceId: d.id, ...h, time: new Date(h.timestamp).getTime() }))).sort((a, b) => a.time - b.time);
+    
+    const dataForChart = allHistoricalData.reduce((acc: {[key:string]: any}[], reading) => {
+        const timeStr = format(new Date(reading.time), 'HH:mm:ss');
+        let timeEntry = acc.find(e => e.time === timeStr);
+        if (!timeEntry) {
+            timeEntry = { time: timeStr };
+            acc.push(timeEntry);
+        }
+        const device = devices.find(d => d.id === reading.deviceId);
+        if (device) {
+            timeEntry[device.name] = reading.coLevel;
+        }
+        return acc;
+    }, []);
 
-  const legendFormatter = (value: string) => {
-    const device = devices.find(d => d.name === value);
-    if (device) {
-      return `${device.name} (${device.coLevel.toFixed(2)} PPM)`;
-    }
-    return value;
-  };
+    const legendFormatter = (value: string) => {
+        const device = devices.find(d => d.name === value);
+        if (device) {
+          return `${device.name} (${device.coLevel.toFixed(2)} PPM)`;
+        }
+        return value;
+      };
 
 
   return (
-    <Card>
+    <Card className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800">
       <CardHeader>
         <CardTitle>Live CO Level Monitoring</CardTitle>
         <CardDescription>
@@ -96,7 +106,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={chartData}
+              data={dataForChart}
               margin={{
                 top: 5,
                 right: 20,
@@ -125,7 +135,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                   borderColor: 'hsl(var(--border))',
                 }}
               />
-              <Legend formatter={legendFormatter} />
+              <Legend iconSize={14} formatter={legendFormatter} />
               {devices.map((device, index) => (
                 <Line
                     key={device.id}
@@ -135,7 +145,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 8 }}
-                    connectNulls={true} // This will connect lines over missing data points
+                    connectNulls={true}
                 />
               ))}
             </LineChart>
