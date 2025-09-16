@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
 import type { Device, Alert } from '@/lib/types';
 import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from 'lucide-react';
+import { Shield, Terminal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 
@@ -177,15 +177,12 @@ export function DashboardComponent() {
 
   const criticalAlertsCount = alerts.filter(a => a.severity === 'Critical').length;
 
+  if (loading) {
+    return <div>Loading dashboard...</div>;
+  }
+  
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 p-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Displaying live data from your sensors via Firestore.
-        </p>
-      </div>
-
        {error && (
          <UiAlert variant="destructive">
            <Terminal className="h-4 w-4" />
@@ -204,25 +201,12 @@ export function DashboardComponent() {
          </UiAlert>
        )}
       
-      {loading ? (
-        <div className="text-center py-10">
-            <p className="text-muted-foreground">Waiting for live sensor data from Firestore...</p>
-        </div>
-      ) : devices.length > 0 ? (
-        <Suspense fallback={<div>Loading tabs...</div>}>
-          <DashboardTabs 
-            devices={devices} 
-            alerts={alerts} 
-            onSelectDevice={setSelectedDevice} 
-            selectedDevice={selectedDevice} 
-          />
-        </Suspense>
-      ) : !error && (
-        <div className="text-center py-10">
-          <p className="text-muted-foreground">No devices found in Firestore. Waiting for sensor data...</p>
-          <p className="text-sm text-muted-foreground mt-2">If you have just started, you can seed initial data by visiting <a href="/api/seed" className="underline">/api/seed</a></p>
-        </div>
-      )}
+      <DashboardTabs
+        devices={devices}
+        alerts={alerts}
+        selectedDevice={selectedDevice}
+        onSelectDevice={setSelectedDevice}
+      />
     </div>
   );
 }
