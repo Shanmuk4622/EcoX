@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm-run-all --parallel next:dev genkit:dev",
-    "next:dev": "NODE_ENV=development next dev --turbopack -p 9002",
+    "next:dev": "NODE_ENV=development next dev --turbopack -p 9002 --hostname 0.0.0.0",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
