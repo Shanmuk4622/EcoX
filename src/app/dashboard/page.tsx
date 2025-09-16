@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
@@ -20,7 +20,7 @@ import { DeviceDetailsCard } from '@/components/device-details-card';
 import AlertsPage from './alerts/page';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function DashboardPage() {
+function DashboardComponent() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export default function DashboardPage() {
                 timestampStr = data.timestamp.toDate().toISOString();
             } else if (typeof data.timestamp === 'string') {
                 timestampStr = data.timestamp;
-            } else if (data.timestamp._seconds) { // Handle Python's firestore.SERVER_TIMESTAMP format
+            } else if (data.timestamp._seconds) { 
                 timestampStr = new Date(data.timestamp._seconds * 1000).toISOString();
             }
         }
@@ -77,6 +77,7 @@ export default function DashboardPage() {
         const newReading = { coLevel, timestamp: timestampStr };
 
         const existingDevice = updatedDevicesMap.get(deviceId);
+        const previousHistoricalData = existingDevice?.historicalData || [];
 
         const updatedDevice: Device = {
           id: deviceId,
@@ -86,7 +87,7 @@ export default function DashboardPage() {
           status: data.status || 'inactive',
           coLevel: newReading.coLevel,
           timestamp: newReading.timestamp,
-          historicalData: [newReading, ...(existingDevice?.historicalData || [])].slice(0, 20),
+          historicalData: [newReading, ...previousHistoricalData].slice(0, 20),
         };
         updatedDevicesMap.set(deviceId, updatedDevice);
       });
@@ -141,6 +142,7 @@ export default function DashboardPage() {
               id: `anomaly-${device.id}-${latestReading.timestamp}`,
               deviceId: device.id,
               deviceName: device.name,
+              location: device.location,
               message: result.explanation,
               timestamp: latestReading.timestamp,
               severity: 'Warning',
@@ -153,7 +155,6 @@ export default function DashboardPage() {
                   toast({
                     title: `AI Anomaly Detected: ${device.name}`,
                     description: result.explanation,
-                    variant: 'destructive'
                   });
                 }, 0);
                 return [anomalyAlert, ...prevAlerts].slice(0, 20);
@@ -175,6 +176,7 @@ export default function DashboardPage() {
           id: `alert-${d.id}-${d.timestamp}`,
           deviceId: d.id,
           deviceName: d.name,
+          location: d.location,
           message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
           timestamp: d.timestamp,
           severity: d.status as 'Critical' | 'Warning'
@@ -188,7 +190,7 @@ export default function DashboardPage() {
 
       const allAlerts = [...newStatusAlerts, ...prevAlerts]
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 20);
+          .slice(0, 50);
 
       return allAlerts;
     });
@@ -275,3 +277,15 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardComponent />
+    </Suspense>
+  );
+}
+
+
+    
