@@ -84,23 +84,20 @@ export default function DashboardPage() {
             const index = deviceIndexMap[deviceId];
             const existingDevice = updatedDevices[index];
 
-            if (existingDevice.timestamp !== newReading.timestamp) {
-              const updatedDevice = {
-                ...existingDevice,
-                coLevel: newReading.coLevel,
-                status: data.status || 'inactive',
-                timestamp: newReading.timestamp,
-                name: data.name || 'Unknown Device',
-                location: locationName,
-                coords: coords,
-                historicalData: [newReading, ...existingDevice.historicalData].slice(0, 20),
-              };
-              updatedDevices[index] = updatedDevice;
+            const updatedDevice = {
+              ...existingDevice,
+              coLevel: newReading.coLevel,
+              status: data.status || 'inactive',
+              timestamp: newReading.timestamp,
+              name: data.name || 'Unknown Device',
+              location: locationName,
+              coords: coords,
+              historicalData: [newReading, ...existingDevice.historicalData].slice(0, 20),
+            };
+            updatedDevices[index] = updatedDevice;
 
-              if (selectedDevice?.id === deviceId) {
-                setSelectedDevice(updatedDevice);
-              }
-              checkForAnomalies([updatedDevice]);
+            if (selectedDevice?.id === deviceId) {
+              setSelectedDevice(updatedDevice);
             }
           }
         });
@@ -125,7 +122,7 @@ export default function DashboardPage() {
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
+
   async function checkForAnomalies(targetDevices: Device[]) {
     for (const device of targetDevices) {
       if (device.historicalData && device.historicalData.length > 1) {
@@ -137,6 +134,7 @@ export default function DashboardPage() {
             timestamp: latestReading.timestamp,
             historicalData: device.historicalData.slice(1),
           });
+
           if (result.isAnomaly) {
             const anomalyAlert: Alert = {
               id: `anomaly-${device.id}-${latestReading.timestamp}`,
@@ -144,7 +142,7 @@ export default function DashboardPage() {
               deviceName: device.name,
               message: result.explanation,
               timestamp: latestReading.timestamp,
-              severity: 'Warning', 
+              severity: 'Warning',
             };
             
             setAlerts(prevAlerts => {
@@ -166,19 +164,21 @@ export default function DashboardPage() {
       }
     }
   }
-  
+
   useEffect(() => {
     if (devices.length > 0) {
-        const statusAlerts = devices
-          .filter(d => (d.status === 'Critical' || d.status === 'Warning'))
-          .map(d => ({
-              id: `alert-${d.id}-${d.timestamp}`,
-              deviceId: d.id,
-              deviceName: d.name,
-              message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
-              timestamp: d.timestamp,
-              severity: d.status as 'Critical' | 'Warning'
-          }));
+      checkForAnomalies(devices);
+
+      const statusAlerts = devices
+        .filter(d => (d.status === 'Critical' || d.status === 'Warning'))
+        .map(d => ({
+            id: `alert-${d.id}-${d.timestamp}`,
+            deviceId: d.id,
+            deviceName: d.name,
+            message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
+            timestamp: d.timestamp,
+            severity: d.status as 'Critical' | 'Warning'
+        }));
       
       setAlerts(prevAlerts => {
         const alertIds = new Set(prevAlerts.map(a => a.id));
@@ -193,6 +193,7 @@ export default function DashboardPage() {
         return allAlerts;
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [devices]);
 
   const criticalAlertsCount = alerts.filter(a => a.severity === 'Critical').length;
