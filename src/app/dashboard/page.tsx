@@ -45,9 +45,9 @@ function DashboardComponent() {
     const q = query(collection(db, 'devices'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const updatedDevicesMap = new Map<string, Device>();
-      
-      devices.forEach(d => updatedDevicesMap.set(d.id, d));
+      const updatedDevicesMap = new Map<string, Device>(
+        devices.map(d => [d.id, d])
+      );
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
@@ -64,15 +64,6 @@ function DashboardComponent() {
             }
         }
         
-        let locationName = 'Unknown Location';
-        let coords = { lat: 0, lng: 0 };
-        if (typeof data.location === 'string') {
-            locationName = data.location;
-        } else if (data.location && typeof data.location === 'object') {
-            locationName = data.location.name || 'Unknown Location';
-            coords = { lat: data.location.lat || 0, lng: data.location.lng || 0 };
-        }
-        
         const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
         const newReading = { coLevel, timestamp: timestampStr };
 
@@ -82,8 +73,11 @@ function DashboardComponent() {
         const updatedDevice: Device = {
           id: deviceId,
           name: data.name || 'Unknown Device',
-          location: locationName,
-          coords: coords,
+          location: data.location?.name || 'Unknown Location',
+          coords: {
+            lat: data.location?.lat || 0,
+            lng: data.location?.lng || 0,
+          },
           status: data.status || 'inactive',
           coLevel: newReading.coLevel,
           timestamp: newReading.timestamp,
@@ -99,7 +93,7 @@ function DashboardComponent() {
       if (updatedDevices.length > 0 && !selectedDevice) {
         setSelectedDevice(updatedDevices[0]);
       } else if (selectedDevice) {
-        const updatedSelected = updatedDevicesMap.get(selectedDevice.id);
+        const updatedSelected = updatedDevices.find(d => d.id === selectedDevice.id);
         if (updatedSelected) {
           setSelectedDevice(updatedSelected);
         }
@@ -286,6 +280,3 @@ export default function DashboardPage() {
     </Suspense>
   );
 }
-
-
-    
