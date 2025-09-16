@@ -51,7 +51,7 @@ export function MapView({ devices }: MapViewProps) {
   const [center, setCenter] = useState({ lat: 40.7128, lng: -74.006 });
 
   useEffect(() => {
-    if (devices.length > 0 && !selectedDevice) {
+    if (devices.length > 0) {
         const totalLat = devices.reduce((sum, d) => sum + (d.coords?.lat || 0), 0);
         const totalLng = devices.reduce((sum, d) => sum + (d.coords?.lng || 0), 0);
         const validDevices = devices.filter(d => d.coords?.lat && d.coords?.lng);
@@ -59,7 +59,7 @@ export function MapView({ devices }: MapViewProps) {
             setCenter({ lat: totalLat / validDevices.length, lng: totalLng / validDevices.length });
         }
     }
-  }, [devices, selectedDevice]);
+  }, [devices]);
 
   const handleMarkerClick = (device: Device) => {
     setSelectedDevice(device);
