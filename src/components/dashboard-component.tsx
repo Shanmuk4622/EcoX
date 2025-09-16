@@ -183,14 +183,11 @@ export function DashboardComponent() {
   
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex items-center gap-4">
-        <Shield className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Displaying live data from your sensors via Firestore.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Displaying live data from your sensors via Firestore.
+        </p>
       </div>
 
        {error && (
