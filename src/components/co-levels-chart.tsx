@@ -34,7 +34,7 @@ const COLORS = [
 ];
 
 export function COLevelsChart({ devices }: COLevelsChartProps) {
-    if (!devices || devices.length === 0 || devices.every(d => !d.historicalData || d.historicalData.length === 0)) {
+    if (!devices || devices.length === 0) {
         return (
             <Card>
                 <CardHeader>
@@ -74,6 +74,14 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         });
         return record;
     });
+
+  const legendFormatter = (value: string) => {
+    const device = devices.find(d => d.name === value);
+    if (device) {
+      return `${device.name} (${device.coLevel.toFixed(2)} PPM)`;
+    }
+    return value;
+  };
 
 
   return (
@@ -117,7 +125,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                   borderColor: 'hsl(var(--border))',
                 }}
               />
-              <Legend />
+              <Legend formatter={legendFormatter} />
               {devices.map((device, index) => (
                 <Line
                     key={device.id}
