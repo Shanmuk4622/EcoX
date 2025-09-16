@@ -50,7 +50,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         );
     }
     
-    // Combine historical data from all devices
+    // Combine historical data from all devices, making sure it's sorted
     const allReadings = devices.flatMap(d => 
         (d.historicalData || []).map(h => ({
             ...h,
@@ -58,22 +58,23 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
             deviceName: d.name,
             time: new Date(h.timestamp).getTime()
         }))
-    );
-    
-    // Get unique timestamps and sort them
-    const uniqueTimestamps = [...new Set(allReadings.map(r => r.time))].sort((a,b) => a - b);
+    ).sort((a,b) => a.time - b.time);
+
+    // Get unique timestamps from all readings
+    const uniqueTimestamps = [...new Set(allReadings.map(r => r.time))];
 
     // Create the data structure for the chart
     const chartData = uniqueTimestamps.map(time => {
         const record: {[key: string]: any} = { time: format(new Date(time), 'HH:mm:ss') };
         devices.forEach(device => {
+            // Find the reading for this device at this specific time
             const reading = allReadings.find(r => r.deviceId === device.id && r.time === time);
-            // Use the reading's coLevel if it exists, otherwise it will be undefined (or null)
-            // Recharts 'connectNulls' will handle connecting lines over these gaps.
+            // If a reading exists, use its coLevel. Otherwise, it's null.
             record[device.name] = reading ? reading.coLevel : null;
         });
         return record;
     });
+
 
   return (
     <Card>
@@ -124,7 +125,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                     dataKey={device.name}
                     stroke={COLORS[index % COLORS.length]}
                     strokeWidth={2}
-                    dot={chartData.length < 2} // Show dots only if there is a single data point
+                    dot={false}
                     activeDot={{ r: 8 }}
                     connectNulls={true} // This will connect lines over missing data points
                 />
