@@ -19,7 +19,8 @@ export function DashboardTabs({ devices, alerts, onSelectDevice, selectedDevice 
   const activeTab = searchParams.get('tab') || 'overview';
 
   const handleTabChange = (value: string) => {
-    router.push(`/dashboard?tab=${value}`);
+    const newPath = `/dashboard?tab=${value}`;
+    router.push(newPath);
   };
 
   return (
@@ -33,13 +34,15 @@ export function DashboardTabs({ devices, alerts, onSelectDevice, selectedDevice 
       <TabsContent value="overview">
         <div className="flex flex-col gap-4">
           <OverviewCards devices={devices} alerts={alerts} />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <div className="lg:col-span-4">
-              <COLevelsChart devices={devices} />
-            </div>
-            <div className="lg:col-span-3 grid gap-4">
-              <DeviceStatusPieChart devices={devices} />
-              <RecentAlerts alerts={alerts} />
+          <div className="bg-card p-4 rounded-lg border">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <div className="lg:col-span-4">
+                <COLevelsChart devices={devices} />
+                </div>
+                <div className="lg:col-span-3 grid gap-4">
+                <DeviceStatusPieChart devices={devices} />
+                <RecentAlerts alerts={alerts} />
+                </div>
             </div>
           </div>
         </div>
