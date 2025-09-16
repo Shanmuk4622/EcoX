@@ -63,7 +63,8 @@ export default function DashboardPage() {
               coords = { lat: data.location.lat || 0, lng: data.location.lng || 0 };
           }
           
-          const newReading = { coLevel: data.coLevel || 0, timestamp: timestampStr };
+          const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
+          const newReading = { coLevel: coLevel, timestamp: timestampStr };
           const deviceId = doc.id;
           
           if (change.type === 'added' || !(deviceId in deviceIndexMap)) {
@@ -78,6 +79,7 @@ export default function DashboardPage() {
               historicalData: [newReading],
             };
             updatedDevices.push(newDevice);
+            deviceIndexMap[deviceId] = updatedDevices.length - 1;
           } else if (change.type === 'modified') {
             const index = deviceIndexMap[deviceId];
             const existingDevice = updatedDevices[index];
