@@ -34,7 +34,7 @@ export function DashboardTabs({ devices, alerts, onSelectDevice, selectedDevice 
       <TabsContent value="overview">
         <div className="flex flex-col gap-4">
           <OverviewCards devices={devices} alerts={alerts} />
-          <div className="bg-card p-4 rounded-lg border">
+          <div className="bg-muted/50 p-4 rounded-lg border">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 <div className="lg:col-span-4">
                 <COLevelsChart devices={devices} />
