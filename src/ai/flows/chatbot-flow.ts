@@ -85,6 +85,10 @@ const chatFlow = ai.defineFlow(
       }
     });
 
-    return { response: output!.text! };
+    if (!output) {
+        return { response: "Sorry, I couldn't generate a response. The request may have been blocked." };
+    }
+
+    return { response: output.text };
   }
 );

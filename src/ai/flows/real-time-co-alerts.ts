@@ -70,6 +70,14 @@ const detectCoAnomalyFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+      // If the model returns no response, assume it's not an anomaly
+      // to avoid false positives. You could also handle this differently.
+      return {
+        isAnomaly: false,
+        explanation: 'Could not determine anomaly status from the model response.',
+      };
+    }
+    return output;
   }
 );
