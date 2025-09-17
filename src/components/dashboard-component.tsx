@@ -228,7 +228,6 @@ export function DashboardComponent() {
             </p>
           </div>
         </div>
-        <Button variant="outline" onClick={() => playBeep(1)}>Test Sound</Button>
       </div>
 
        {error && (
