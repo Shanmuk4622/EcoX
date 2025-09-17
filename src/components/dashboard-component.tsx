@@ -1,26 +1,17 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
 import type { Device, Alert } from '@/lib/types';
 import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Shield, Terminal } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 import { Chatbot } from '@/components/chatbot';
-
-function getDeviceStatus(coLevel: number): Device['status'] {
-  if (coLevel >= 300) {
-    return 'Critical';
-  }
-  if (coLevel >= 100) {
-    return 'Warning';
-  }
-  return 'Normal';
-}
+import { useAudio } from '@/hooks/use-audio';
 
 export function DashboardComponent() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -29,6 +20,18 @@ export function DashboardComponent() {
   const [loading, setLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const { toast } = useToast();
+  const { playBeep, startContinuousBeep, stopContinuousBeep, isPlaying } = useAudio();
+  
+  const getDeviceStatus = useCallback((coLevel: number): Device['status'] => {
+    if (coLevel >= 300) {
+      return 'Critical';
+    }
+    if (coLevel >= 100) {
+      return 'Warning';
+    }
+    return 'Normal';
+  }, []);
+
 
   useEffect(() => {
     if (!db) {
@@ -39,61 +42,68 @@ export function DashboardComponent() {
     const q = query(collection(db, 'devices'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      setDevices(prevDevices => {
-        const updatedDevicesMap = new Map<string, Device>(
-          prevDevices.map(d => [d.id, d])
-        );
+      const newDevicesMap = new Map<string, Device>();
 
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          const deviceId = doc.id;
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const deviceId = doc.id;
 
-          let timestampStr = new Date().toISOString();
-          if (data.timestamp) {
-              if (data.timestamp instanceof Timestamp) {
-                  timestampStr = data.timestamp.toDate().toISOString();
-              } else if (typeof data.timestamp === 'string') {
-                  timestampStr = data.timestamp;
-              } else if (data.timestamp._seconds) { 
-                  timestampStr = new Date(data.timestamp._seconds * 1000).toISOString();
-              }
-          }
-          
-          const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
-          const newReading = { coLevel, timestamp: timestampStr };
-
-          const existingDevice = updatedDevicesMap.get(deviceId);
-          const previousHistoricalData = existingDevice?.historicalData || [];
-
-          const updatedDevice: Device = {
-            id: deviceId,
-            name: data.name || 'Unknown Device',
-            location: data.location?.name || 'Unknown Location',
-            coords: {
-              lat: data.location?.lat || 0,
-              lng: data.location?.lng || 0,
-            },
-            status: getDeviceStatus(newReading.coLevel),
-            coLevel: newReading.coLevel,
-            timestamp: newReading.timestamp,
-            historicalData: [newReading, ...previousHistoricalData].slice(0, 20),
-          };
-          updatedDevicesMap.set(deviceId, updatedDevice);
-        });
-
-        const updatedDevices = Array.from(updatedDevicesMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-        
-        if (updatedDevices.length > 0 && !selectedDevice) {
-            setSelectedDevice(updatedDevices[0]);
-        } else if (selectedDevice) {
-            const updatedSelected = updatedDevices.find(d => d.id === selectedDevice.id);
-            if (updatedSelected) {
-            setSelectedDevice(updatedSelected);
+        let timestampStr = new Date().toISOString();
+        if (data.timestamp) {
+            if (data.timestamp instanceof Timestamp) {
+                timestampStr = data.timestamp.toDate().toISOString();
+            } else if (typeof data.timestamp === 'string') {
+                timestampStr = data.timestamp;
+            } else if (data.timestamp._seconds) { 
+                timestampStr = new Date(data.timestamp._seconds * 1000).toISOString();
             }
         }
+        
+        const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
+        const newReading = { coLevel, timestamp: timestampStr };
+        
+        const existingDevice = devices.find(d => d.id === deviceId);
+        const previousHistoricalData = existingDevice?.historicalData || [];
 
+        const updatedDevice: Device = {
+          id: deviceId,
+          name: data.name || 'Unknown Device',
+          location: data.location?.name || 'Unknown Location',
+          coords: {
+            lat: data.location?.lat || 0,
+            lng: data.location?.lng || 0,
+          },
+          status: getDeviceStatus(newReading.coLevel),
+          coLevel: newReading.coLevel,
+          timestamp: newReading.timestamp,
+          historicalData: [newReading, ...previousHistoricalData].slice(0, 20),
+        };
+        newDevicesMap.set(deviceId, updatedDevice);
+      });
+
+      const updatedDevices = Array.from(newDevicesMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+        
+      setDevices(prevDevices => {
+        // Play sounds based on status changes
+        updatedDevices.forEach(newDevice => {
+          const oldDevice = prevDevices.find(d => d.id === newDevice.id);
+          if (!oldDevice || oldDevice.status !== newDevice.status) {
+            if (newDevice.status === 'Warning') {
+              playBeep(2);
+            }
+          }
+        });
         return updatedDevices;
       });
+
+      if (updatedDevices.length > 0 && !selectedDevice) {
+          setSelectedDevice(updatedDevices[0]);
+      } else if (selectedDevice) {
+          const updatedSelected = updatedDevices.find(d => d.id === selectedDevice.id);
+          if (updatedSelected) {
+          setSelectedDevice(updatedSelected);
+          }
+      }
 
       setLoading(false);
       setError(null);
@@ -106,6 +116,20 @@ export function DashboardComponent() {
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const isAnyDeviceCritical = devices.some(d => d.status === 'Critical');
+    const areAllDevicesNormal = devices.every(d => d.coLevel < 100);
+
+    if (isAnyDeviceCritical) {
+      if (!isPlaying) {
+        startContinuousBeep();
+      }
+    } else if (isPlaying && areAllDevicesNormal) {
+      stopContinuousBeep();
+    }
+  }, [devices, isPlaying, startContinuousBeep, stopContinuousBeep]);
+
 
   useEffect(() => {
     if (devices.length > 0) {
