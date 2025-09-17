@@ -10,9 +10,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import type { Device, Alert } from '@/lib/types';
 
-export const ChatInputSchema = z.object({
+const ChatInputSchema = z.object({
   history: z.array(z.object({
     role: z.enum(['user', 'model']),
     content: z.string(),
@@ -35,7 +34,7 @@ export const ChatInputSchema = z.object({
 });
 export type ChatInput = z.infer<typeof ChatInputSchema>;
 
-export const ChatOutputSchema = z.object({
+const ChatOutputSchema = z.object({
   response: z.string().describe('The chatbot\'s response.'),
 });
 export type ChatOutput = z.infer<typeof ChatOutputSchema>;
