@@ -11,6 +11,16 @@ import { Shield, Terminal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 
+function getDeviceStatus(coLevel: number): Device['status'] {
+  if (coLevel >= 300) {
+    return 'Critical';
+  }
+  if (coLevel >= 100) {
+    return 'Warning';
+  }
+  return 'Normal';
+}
+
 export function DashboardComponent() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -62,7 +72,7 @@ export function DashboardComponent() {
               lat: data.location?.lat || 0,
               lng: data.location?.lng || 0,
             },
-            status: data.status || 'inactive',
+            status: getDeviceStatus(newReading.coLevel),
             coLevel: newReading.coLevel,
             timestamp: newReading.timestamp,
             historicalData: [newReading, ...previousHistoricalData].slice(0, 20),
@@ -183,11 +193,13 @@ export function DashboardComponent() {
   
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Displaying live data from your sensors via Firestore.
-        </p>
+      <div className="flex items-center gap-4 p-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Displaying live data from your sensors via Firestore.
+          </p>
+        </div>
       </div>
 
        {error && (
