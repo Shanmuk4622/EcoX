@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
@@ -10,6 +10,7 @@ import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/
 import { Shield, Terminal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DashboardTabs } from '@/components/dashboard-tabs';
+import { Chatbot } from '@/components/chatbot';
 
 function getDeviceStatus(coLevel: number): Device['status'] {
   if (coLevel >= 300) {
@@ -226,6 +227,7 @@ export function DashboardComponent() {
         selectedDevice={selectedDevice}
         onSelectDevice={setSelectedDevice}
       />
+      <Chatbot devices={devices} alerts={alerts} />
     </div>
   );
 }
