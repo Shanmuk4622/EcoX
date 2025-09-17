@@ -10,6 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { compile } from 'handlebars';
 
 const ChatInputSchema = z.object({
   history: z.array(z.object({
@@ -43,7 +44,7 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   return chatFlow(input);
 }
 
-const systemPrompt = `You are a helpful AI assistant for the EnviroWatch application, a dashboard that monitors Carbon Monoxide (CO) levels from various sensors.
+const systemPromptTemplate = `You are a helpful AI assistant for the EnviroWatch application, a dashboard that monitors Carbon Monoxide (CO) levels from various sensors.
 
 Your role is to answer user questions based on the real-time data provided. Be concise and helpful.
 
@@ -72,17 +73,15 @@ const chatFlow = ai.defineFlow(
     outputSchema: ChatOutputSchema,
   },
   async (input) => {
-    const { history, message } = input;
+    const { history, message, deviceData, alertData } = input;
+
+    // Compile the system prompt with the dynamic data
+    const template = compile(systemPromptTemplate);
+    const systemPrompt = template({ deviceData, alertData });
 
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
-      system: {
-          template: systemPrompt,
-          context: {
-            deviceData: input.deviceData,
-            alertData: input.alertData,
-          }
-      },
+      system: systemPrompt,
       prompt: message,
       history: history.map(h => ({ role: h.role, content: [{ text: h.content }] })),
     });
