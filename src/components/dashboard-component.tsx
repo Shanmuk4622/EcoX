@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { DashboardTabs } from '@/components/dashboard-tabs';
 import { Chatbot } from '@/components/chatbot';
 import { useAudio } from '@/hooks/use-audio';
+import { Button } from '@/components/ui/button';
 
 export function DashboardComponent() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -218,13 +219,16 @@ export function DashboardComponent() {
   
   return (
     <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex items-center gap-4 p-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Displaying live data from your sensors via Firestore.
-          </p>
+      <div className="flex items-center justify-between gap-4 p-4">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Displaying live data from your sensors via Firestore.
+            </p>
+          </div>
         </div>
+        <Button variant="outline" onClick={() => playBeep(1)}>Test Sound</Button>
       </div>
 
        {error && (
