@@ -66,6 +66,9 @@ Alerts:
 If you don't have enough information to answer, say so. Do not make up information.
 `;
 
+// Compile the template once, outside the flow execution.
+const compiledSystemPrompt = compile(systemPromptTemplate);
+
 const chatFlow = ai.defineFlow(
   {
     name: 'chatbotFlow',
@@ -75,9 +78,8 @@ const chatFlow = ai.defineFlow(
   async (input) => {
     const { history, message, deviceData, alertData } = input;
 
-    // Compile the system prompt with the dynamic data
-    const template = compile(systemPromptTemplate);
-    const systemPrompt = template({ deviceData, alertData });
+    // Generate the system prompt with the dynamic data
+    const systemPrompt = compiledSystemPrompt({ deviceData, alertData });
     
     // Exclude the latest user message from the history to avoid duplication.
     const conversationHistory = history.slice(0, -1);
