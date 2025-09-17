@@ -78,12 +78,15 @@ const chatFlow = ai.defineFlow(
     // Compile the system prompt with the dynamic data
     const template = compile(systemPromptTemplate);
     const systemPrompt = template({ deviceData, alertData });
+    
+    // Exclude the latest user message from the history to avoid duplication.
+    const conversationHistory = history.slice(0, -1);
 
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
       system: systemPrompt,
       prompt: message,
-      history: history.map(h => ({ role: h.role, content: [{ text: h.content }] })),
+      history: conversationHistory.map(h => ({ role: h.role, content: [{ text: h.content }] })),
     });
 
     if (!output) {
