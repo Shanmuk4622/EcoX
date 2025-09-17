@@ -76,13 +76,15 @@ const chatFlow = ai.defineFlow(
 
     const { output } = await ai.generate({
       model: 'googleai/gemini-2.5-flash',
-      system: systemPrompt,
+      system: {
+          template: systemPrompt,
+          context: {
+            deviceData: input.deviceData,
+            alertData: input.alertData,
+          }
+      },
       prompt: message,
       history: history.map(h => ({ role: h.role, content: [{ text: h.content }] })),
-      context: {
-        deviceData: input.deviceData,
-        alertData: input.alertData,
-      }
     });
 
     if (!output) {
