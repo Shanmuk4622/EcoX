@@ -87,6 +87,26 @@ const chatFlow = ai.defineFlow(
       system: systemPrompt,
       prompt: message,
       history: conversationHistory.map(h => ({ role: h.role, content: [{ text: h.content }] })),
+      config: {
+        safetySettings: [
+          {
+            category: 'HARM_CATEGORY_HARASSMENT',
+            threshold: 'BLOCK_ONLY_HIGH',
+          },
+          {
+            category: 'HARM_CATEGORY_HATE_SPEECH',
+            threshold: 'BLOCK_ONLY_HIGH',
+          },
+          {
+              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+              threshold: 'BLOCK_ONLY_HIGH',
+          },
+          {
+              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+              threshold: 'BLOCK_ONLY_HIGH',
+          },
+        ],
+      }
     });
 
     if (!output) {
