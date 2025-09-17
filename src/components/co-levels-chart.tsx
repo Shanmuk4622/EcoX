@@ -50,40 +50,28 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         );
     }
     
-    const chartData = devices.flatMap(device => 
+    // Combine all historical data points from all devices into a single array
+    const allHistoricalData = devices.flatMap(device =>
         device.historicalData.map(d => ({
+            deviceId: device.id,
+            deviceName: device.name,
+            coLevel: d.coLevel,
             time: new Date(d.timestamp).getTime(),
-            [device.name]: d.coLevel
         }))
     );
 
-    // This is a bit tricky. We need to merge all data points by time.
-    const mergedData = chartData.reduce((acc, curr) => {
-        const time = new Date(curr.time).toLocaleTimeString();
-        let existing = acc.find(item => item.time === time);
-        if (existing) {
-            Object.assign(existing, curr);
-        } else {
-            acc.push({ ...curr, time });
+    // Group data by timestamp
+    const dataByTime = allHistoricalData.reduce((acc, curr) => {
+        const timeStr = format(new Date(curr.time), 'HH:mm:ss');
+        if (!acc[timeStr]) {
+            acc[timeStr] = { time: timeStr };
         }
+        acc[timeStr][curr.deviceName] = curr.coLevel;
         return acc;
-    }, [] as any[]).sort((a,b) => new Date('1970-01-01 ' + a.time).getTime() - new Date('1970-01-01 ' + b.time).getTime());
-
-    const allHistoricalData = devices.flatMap(d => d.historicalData.map(h => ({ deviceId: d.id, ...h, time: new Date(h.timestamp).getTime() }))).sort((a, b) => a.time - b.time);
+    }, {} as Record<string, any>);
     
-    const dataForChart = allHistoricalData.reduce((acc: {[key:string]: any}[], reading) => {
-        const timeStr = format(new Date(reading.time), 'HH:mm:ss');
-        let timeEntry = acc.find(e => e.time === timeStr);
-        if (!timeEntry) {
-            timeEntry = { time: timeStr };
-            acc.push(timeEntry);
-        }
-        const device = devices.find(d => d.id === reading.deviceId);
-        if (device) {
-            timeEntry[device.name] = reading.coLevel;
-        }
-        return acc;
-    }, []);
+    const dataForChart = Object.values(dataByTime).sort((a,b) => a.time.localeCompare(b.time));
+
 
     const legendFormatter = (value: string) => {
         const device = devices.find(d => d.name === value);
