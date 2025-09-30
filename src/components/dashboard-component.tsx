@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, onSnapshot, query, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
 import type { Device, Alert } from '@/lib/types';
@@ -21,7 +20,7 @@ export function DashboardComponent() {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const { toast } = useToast();
   const { playBeep, startContinuousBeep, stopContinuousBeep, isPlaying } = useAudio();
-  
+
   const getDeviceStatus = useCallback((coLevel: number): Device['status'] => {
     if (coLevel >= 300) {
       return 'Critical';
@@ -32,119 +31,102 @@ export function DashboardComponent() {
     return 'Normal';
   }, []);
 
-  // Effect to listen to new readings and trigger the API to update the device
-  useEffect(() => {
-    if (!db) return;
-
-    const q = query(collection(db, "readings"), orderBy("timestamp", "desc"), limit(1));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        if (change.type === "added") {
-          const newReading = change.doc.data();
-          try {
-            await fetch('/api/devices', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                deviceId: newReading.deviceId,
-                coLevel: newReading.coLevel,
-                timestamp: newReading.timestamp,
-              }),
-            });
-          } catch (e) {
-            console.error("Failed to post new reading to API", e)
-          }
-        }
-      });
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-
   useEffect(() => {
     if (!db) {
       setError("Firestore is not configured. Please add your Firebase project configuration to your environment variables.");
       setLoading(false);
       return;
     }
-    const q = query(collection(db, 'devices'));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const updatedDevices: Device[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const deviceId = doc.id;
+    // Listener for static device data (name, location, etc.)
+    const devicesQuery = query(collection(db, 'devices'));
+    const unsubscribeDevices = onSnapshot(devicesQuery, (snapshot) => {
+      const staticDevices = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Omit<Device, 'coLevel' | 'timestamp' | 'historicalData' | 'status'>[];
 
-        let timestampStr = new Date().toISOString();
-        if (data.timestamp) {
-            if (data.timestamp instanceof Timestamp) {
-                timestampStr = data.timestamp.toDate().toISOString();
-            } else if (typeof data.timestamp === 'string') {
-                timestampStr = data.timestamp;
-            } else if (data.timestamp._seconds) {
-                timestampStr = new Date(data.timestamp._seconds * 1000).toISOString();
+      // Listener for real-time readings
+      const readingsQuery = query(collection(db, 'readings'));
+      const unsubscribeReadings = onSnapshot(readingsQuery, (readingsSnapshot) => {
+        const readingsByDevice: { [key: string]: { coLevel: number, timestamp: string }[] } = {};
+
+        readingsSnapshot.forEach((doc) => {
+          const reading = doc.data();
+          const deviceId = reading.deviceId;
+          if (!deviceId) return;
+
+          if (!readingsByDevice[deviceId]) {
+            readingsByDevice[deviceId] = [];
+          }
+          
+          let timestampStr: string;
+           if (reading.timestamp instanceof Timestamp) {
+                timestampStr = reading.timestamp.toDate().toISOString();
+            } else {
+                timestampStr = reading.timestamp;
+            }
+
+          readingsByDevice[deviceId].push({
+            coLevel: reading.coLevel,
+            timestamp: timestampStr,
+          });
+        });
+        
+        const updatedDevices = staticDevices.map(staticDevice => {
+          const deviceReadings = readingsByDevice[staticDevice.id] || [];
+          deviceReadings.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          
+          const latestReading = deviceReadings[0] || { coLevel: 0, timestamp: new Date().toISOString() };
+
+          return {
+            ...staticDevice,
+            coLevel: latestReading.coLevel,
+            timestamp: latestReading.timestamp,
+            status: getDeviceStatus(latestReading.coLevel),
+            historicalData: deviceReadings.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).slice(-20), // Keep latest 20 for charts
+          };
+        });
+
+        const sortedDevices = updatedDevices.sort((a, b) => a.name.localeCompare(b.name));
+        
+        // Play sounds based on status changes
+        sortedDevices.forEach(newDevice => {
+            const oldDevice = devices.find(d => d.id === newDevice.id);
+            if (oldDevice && oldDevice.status !== newDevice.status) {
+              if (newDevice.status === 'Warning') {
+                playBeep(2);
+              }
+            }
+        });
+
+        if (sortedDevices.length > 0 && !selectedDevice) {
+            setSelectedDevice(sortedDevices[0]);
+        } else if (selectedDevice) {
+            const updatedSelected = sortedDevices.find(d => d.id === selectedDevice.id);
+            if (updatedSelected) {
+              setSelectedDevice(updatedSelected);
             }
         }
         
-        const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
-        
-        const historicalData = (data.historicalData || []).map((d: any) => ({
-            ...d,
-            timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
-        })).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-        const updatedDevice: Device = {
-          id: deviceId,
-          name: data.name || 'Unknown Device',
-          location: data.location?.name || 'Unknown Location',
-          coords: {
-            lat: data.location?.lat || 0,
-            lng: data.location?.lng || 0,
-          },
-          status: getDeviceStatus(coLevel),
-          coLevel: coLevel,
-          timestamp: timestampStr,
-          historicalData: historicalData,
-        };
-        updatedDevices.push(updatedDevice);
-      });
-
-      const sortedDevices = updatedDevices.sort((a, b) => a.name.localeCompare(b.name));
-
-      // Play sounds based on status changes
-      sortedDevices.forEach(newDevice => {
-        const oldDevice = devices.find(d => d.id === newDevice.id);
-        if (oldDevice && oldDevice.status !== newDevice.status) {
-          if (newDevice.status === 'Warning') {
-            playBeep(2);
-          }
-        }
+        setDevices(sortedDevices);
+        setLoading(false);
+        setError(null);
+      }, (err) => {
+        console.error("Failed to fetch readings from Firestore:", err);
+        setError("Failed to load readings data.");
+        setLoading(false);
       });
       
-      if (sortedDevices.length > 0 && !selectedDevice) {
-          setSelectedDevice(sortedDevices[0]);
-      } else if (selectedDevice) {
-          const updatedSelected = sortedDevices.find(d => d.id === selectedDevice.id);
-          if (updatedSelected) {
-            setSelectedDevice(updatedSelected);
-          }
-      }
-
-      setDevices(sortedDevices);
-      setLoading(false);
-      setError(null);
-
+      return () => unsubscribeReadings();
+      
     }, (err) => {
-      console.error("Failed to fetch devices from Firestore:", err);
-      setError("Failed to load device data. Please check your connection and Firebase setup.");
-      setLoading(false);
+        console.error("Failed to fetch devices from Firestore:", err);
+        setError("Failed to load device data. Please check your connection and Firebase setup.");
+        setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeDevices();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -160,7 +142,6 @@ export function DashboardComponent() {
       stopContinuousBeep();
     }
   }, [devices, isPlaying, startContinuousBeep, stopContinuousBeep]);
-
 
   useEffect(() => {
     if (devices.length > 0) {
