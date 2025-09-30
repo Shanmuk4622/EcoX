@@ -42,22 +42,22 @@ const COLORS = [
 ];
 
 export function COLevelsChart({ devices }: COLevelsChartProps) {
-  const [timePeriod, setTimePeriod] = useState('1h');
+  const [timePeriod, setTimePeriod] = useState('24h');
 
   const filteredDevices = useMemo(() => {
     const now = new Date();
     let cutoffDate: Date;
 
     switch (timePeriod) {
+      case '1h':
+        cutoffDate = sub(now, { hours: 1 });
+        break;
       case '6h':
         cutoffDate = sub(now, { hours: 6 });
         break;
       case '24h':
-        cutoffDate = sub(now, { hours: 24 });
-        break;
-      case '1h':
       default:
-        cutoffDate = sub(now, { hours: 1 });
+        cutoffDate = sub(now, { hours: 24 });
         break;
     }
 
