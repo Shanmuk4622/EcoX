@@ -53,7 +53,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
     // Get all unique timestamps from all devices' historical data
     const allTimestamps = new Set<string>();
     devices.forEach(device => {
-        device.historicalData.forEach(d => {
+        (device.historicalData || []).forEach(d => {
             allTimestamps.add(format(new Date(d.timestamp), 'HH:mm:ss'));
         });
     });
@@ -65,7 +65,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         const dataPoint: { [key: string]: any } = { time };
         devices.forEach(device => {
             // Find the reading for this device at this specific time
-            const reading = device.historicalData.find(d => format(new Date(d.timestamp), 'HH:mm:ss') === time);
+            const reading = (device.historicalData || []).find(d => format(new Date(d.timestamp), 'HH:mm:ss') === time);
             dataPoint[device.name] = reading ? reading.coLevel : null;
         });
         return dataPoint;
