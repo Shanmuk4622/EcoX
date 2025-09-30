@@ -12,23 +12,30 @@ export async function POST(request: Request) {
   }
   try {
     const payload = await request.json(); 
-    // The timestamp from a Firestore trigger (or passed from the client after a read) 
-    // might be an object with _seconds and _nanoseconds.
     const { deviceId, coLevel, timestamp } = payload;
 
     if (!deviceId || typeof coLevel !== 'number' || !timestamp) {
         return NextResponse.json({ error: 'Invalid payload. Expecting deviceId, coLevel, and timestamp.' }, { status: 400 });
     }
     
-    // Convert Firestore Timestamp object to ISO string if necessary
-    let isoTimestamp: string;
+    // Convert incoming timestamp to a valid Date object, no matter the format
+    let validDate: Date;
     if (timestamp._seconds !== undefined && timestamp._nanoseconds !== undefined) {
-        isoTimestamp = new Date(timestamp._seconds * 1000 + timestamp._nanoseconds / 1000000).toISOString();
+        // Handle Firestore Timestamp object
+        validDate = new Date(timestamp._seconds * 1000 + timestamp._nanoseconds / 1000000);
     } else if (typeof timestamp === 'string') {
-        isoTimestamp = new Date(timestamp).toISOString();
+        // Handle ISO string format
+        validDate = new Date(timestamp);
     } else {
-        isoTimestamp = new Date().toISOString();
+        // Fallback to current time if format is unknown
+        validDate = new Date();
     }
+
+    if (isNaN(validDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid timestamp format.', details: `Received: ${timestamp}` }, { status: 400 });
+    }
+    
+    const isoTimestamp = validDate.toISOString();
 
 
     const deviceRef = adminDb.collection('devices').doc(deviceId);
@@ -37,23 +44,22 @@ export async function POST(request: Request) {
     await adminDb.runTransaction(async (transaction) => {
         const doc = await transaction.get(deviceRef);
         if (!doc.exists) {
-            // If the device doesn't exist, we can't update it.
-            // In a real-world scenario, you might want to create it here.
             console.error(`Device with ID ${deviceId} not found.`);
             return; // Exit transaction
         }
         const data = doc.data();
-        const existingData = data?.historicalData || [];
+        // Ensure historicalData is an array, defaulting to empty if it doesn't exist
+        const existingData = Array.isArray(data?.historicalData) ? data.historicalData : [];
         
         const newReading = { coLevel, timestamp: isoTimestamp };
 
         // Add new reading and keep the array size to 20
-        // Prepend the new reading and take the last 20 items.
+        // Prepend the new reading and take the first 20 items.
         const updatedHistoricalData = [newReading, ...existingData].slice(0, 20);
 
         transaction.update(deviceRef, {
             coLevel: coLevel,
-            timestamp: Timestamp.fromDate(new Date(isoTimestamp)),
+            timestamp: Timestamp.fromDate(validDate),
             historicalData: updatedHistoricalData,
         });
     });
