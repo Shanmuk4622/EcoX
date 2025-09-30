@@ -41,6 +41,25 @@ const COLORS = [
     'hsl(var(--chart-5))',
 ];
 
+const generateFakeData = (devices: Device[]) => {
+  const now = new Date();
+  const dataPoints = 20;
+  return devices.map(device => {
+    const historicalData = [];
+    let coLevel = Math.random() * 10;
+    for (let i = dataPoints -1; i >= 0; i--) {
+      const timestamp = sub(now, { hours: i }).toISOString();
+      coLevel += (Math.random() - 0.5) * 2;
+      if (coLevel < 0) coLevel = 0;
+      historicalData.push({ coLevel: parseFloat(coLevel.toFixed(2)), timestamp });
+    }
+    return {
+      ...device,
+      historicalData,
+    };
+  })
+};
+
 export function COLevelsChart({ devices }: COLevelsChartProps) {
   const [timePeriod, setTimePeriod] = useState('24h');
 
@@ -72,6 +91,8 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
   const hasData = useMemo(() => {
     return filteredDevices.some(d => d.historicalData.length > 0);
   }, [filteredDevices]);
+  
+  const chartDevices = hasData ? filteredDevices : generateFakeData(devices);
 
 
   if (!devices || devices.length === 0) {
@@ -109,7 +130,9 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         <div className="flex sm:flex-row flex-col sm:items-center justify-between gap-2">
             <div>
                 <CardTitle>Live CO Level Monitoring</CardTitle>
-                <CardDescription>Real-time CO levels (ppm) for all devices.</CardDescription>
+                <CardDescription>
+                  {hasData ? 'Real-time CO levels (ppm) for all devices.' : 'Real-time CO levels (ppm) for all devices. (Showing sample data)'}
+                </CardDescription>
             </div>
             <Select value={timePeriod} onValueChange={setTimePeriod}>
                 <SelectTrigger className="w-[180px]">
@@ -125,11 +148,6 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
-          {!hasData ? (
-             <div className="flex h-full w-full items-center justify-center">
-                <p className="text-muted-foreground">No data available for the selected time period.</p>
-             </div>
-          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               margin={{
@@ -167,7 +185,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                 }}
               />
               <Legend iconSize={14} formatter={legendFormatter} />
-              {filteredDevices.map((device, index) => (
+              {chartDevices.map((device, index) => (
                 <Line
                   key={device.id}
                   data={device.historicalData.map(h => ({ ...h, timestamp: new Date(h.timestamp).getTime() }))}
@@ -183,7 +201,6 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
               ))}
             </LineChart>
           </ResponsiveContainer>
-          )}
         </div>
       </CardContent>
     </Card>
