@@ -88,7 +88,7 @@ export function DashboardComponent() {
             coLevel: latestReading.coLevel,
             timestamp: latestReading.timestamp,
             status: getDeviceStatus(latestReading.coLevel),
-            historicalData: deviceReadings.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).slice(-20),
+            historicalData: deviceReadings.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
           };
         });
 
