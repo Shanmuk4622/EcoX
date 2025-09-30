@@ -61,11 +61,17 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         break;
     }
 
+    if (!devices) return [];
+
     return devices.map(device => ({
       ...device,
       historicalData: device.historicalData.filter(d => new Date(d.timestamp) >= cutoffDate),
     }));
   }, [devices, timePeriod]);
+  
+  const hasData = useMemo(() => {
+    return filteredDevices.some(d => d.historicalData.length > 0);
+  }, [filteredDevices]);
 
 
   if (!devices || devices.length === 0) {
@@ -119,6 +125,11 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
+          {!hasData ? (
+             <div className="flex h-full w-full items-center justify-center">
+                <p className="text-muted-foreground">No data available for the selected time period.</p>
+             </div>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               margin={{
@@ -172,6 +183,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
               ))}
             </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
       </CardContent>
     </Card>
