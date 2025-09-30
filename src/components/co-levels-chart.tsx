@@ -64,6 +64,10 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
   const [timePeriod, setTimePeriod] = useState('24h');
 
   const filteredDevices = useMemo(() => {
+    if (timePeriod === 'all') {
+      return devices;
+    }
+
     const now = new Date();
     let cutoffDate: Date;
 
@@ -158,6 +162,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                     <SelectItem value="7d">Last 7 Days</SelectItem>
                     <SelectItem value="30d">Last 30 Days</SelectItem>
                     <SelectItem value="6m">Last 6 Months</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
             </Select>
         </div>
