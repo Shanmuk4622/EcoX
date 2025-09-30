@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -49,11 +50,11 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         );
     }
     
-    // Combine all historical data and get the unique timestamps
-    const allData = devices.flatMap(d => d.historicalData || []);
+    // Get the time domain from all devices
+    const allHistoricalData = devices.flatMap(d => d.historicalData || []);
     const timeDomain = [
-        Math.min(...allData.map(d => new Date(d.timestamp).getTime())),
-        Math.max(...allData.map(d => new Date(d.timestamp).getTime()))
+        Math.min(...allHistoricalData.map(d => new Date(d.timestamp).getTime())),
+        Math.max(...allHistoricalData.map(d => new Date(d.timestamp).getTime()))
     ];
     
     const legendFormatter = (value: string) => {
@@ -64,8 +65,11 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         return value;
     };
     
-    const timeFormatter = (tick: number) => {
-        return format(new Date(tick), 'HH:mm:ss');
+    const timeFormatter = (tick: number | string) => {
+        if (typeof tick === 'string') {
+          return format(new Date(tick), 'HH:mm');
+        }
+        return format(new Date(tick), 'HH:mm');
     }
 
   return (
@@ -89,9 +93,9 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
             >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
-                dataKey={(payload) => new Date(payload.timestamp).getTime()}
+                dataKey="timestamp"
                 type="number"
-                domain={timeDomain}
+                domain={['dataMin', 'dataMax']}
                 scale="time"
                 tickFormatter={timeFormatter}
                 stroke="hsl(var(--muted-foreground))"
@@ -107,7 +111,8 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                 domain={[0, 'dataMax + 5']}
               />
               <Tooltip
-                labelFormatter={timeFormatter}
+                labelFormatter={(label) => format(new Date(label), 'PPP p')}
+                formatter={(value: number, name: string) => [`${value.toFixed(2)} ppm`, name]}
                 contentStyle={{
                   backgroundColor: 'hsl(var(--background))',
                   borderColor: 'hsl(var(--border))',
@@ -117,7 +122,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
               {devices.map((device, index) => (
                 <Line
                     key={device.id}
-                    data={device.historicalData}
+                    data={device.historicalData.map(h => ({...h, timestamp: new Date(h.timestamp).getTime()}))}
                     type="monotone"
                     name={device.name}
                     dataKey="coLevel"
