@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import PpmChart from "./ppm-chart";
 import { Device } from "@/lib/types";
 import { Badge } from "./ui/badge";
+import { DeviceDataLogs } from "./device-data-logs";
 
 interface DeviceDetailsCardProps {
   device: Device | null;
@@ -43,7 +44,7 @@ export function DeviceDetailsCard({ device }: DeviceDetailsCardProps) {
             <Badge variant={getStatusVariant(device.status)} className="capitalize">{device.status}</Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div>
             <h3 className="text-sm font-medium text-muted-foreground mb-2">Real-time CO Level</h3>
             <p className="text-2xl font-bold">{device.coLevel.toFixed(2)} PPM</p>
@@ -54,6 +55,10 @@ export function DeviceDetailsCard({ device }: DeviceDetailsCardProps) {
             <div className="h-[300px] w-full">
                 <PpmChart device={device} />
             </div>
+        </div>
+        <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Data Logs</h3>
+            <DeviceDataLogs data={device.historicalData} />
         </div>
       </CardContent>
     </Card>
