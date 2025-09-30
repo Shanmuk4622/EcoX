@@ -1,6 +1,7 @@
 
 'use client';
 
+import { useMemo, useState } from 'react';
 import {
   Line,
   LineChart,
@@ -18,8 +19,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { Device } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, sub } from 'date-fns';
 
 interface COLevelsChartProps {
   devices: Device[];
@@ -34,51 +42,80 @@ const COLORS = [
 ];
 
 export function COLevelsChart({ devices }: COLevelsChartProps) {
-    if (!devices || devices.length === 0) {
-        return (
-            <Card className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800">
-                <CardHeader>
-                    <CardTitle>CO Level Monitoring</CardTitle>
-                    <CardDescription>
-                        Awaiting data...
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="h-[300px] flex items-center justify-center">
-                    <p className="text-muted-foreground">No device data available to display chart.</p>
-                </CardContent>
-            </Card>
-        );
+  const [timePeriod, setTimePeriod] = useState('1h');
+
+  const filteredDevices = useMemo(() => {
+    const now = new Date();
+    let cutoffDate: Date;
+
+    switch (timePeriod) {
+      case '6h':
+        cutoffDate = sub(now, { hours: 6 });
+        break;
+      case '24h':
+        cutoffDate = sub(now, { hours: 24 });
+        break;
+      case '1h':
+      default:
+        cutoffDate = sub(now, { hours: 1 });
+        break;
     }
-    
-    // Get the time domain from all devices
-    const allHistoricalData = devices.flatMap(d => d.historicalData || []);
-    const timeDomain = [
-        Math.min(...allHistoricalData.map(d => new Date(d.timestamp).getTime())),
-        Math.max(...allHistoricalData.map(d => new Date(d.timestamp).getTime()))
-    ];
-    
-    const legendFormatter = (value: string) => {
-        const device = devices.find(d => d.name === value);
-        if (device) {
-          return `${device.name} (${device.coLevel.toFixed(2)} PPM)`;
-        }
-        return value;
-    };
-    
-    const timeFormatter = (tick: number | string) => {
-        if (typeof tick === 'string') {
-          return format(new Date(tick), 'HH:mm');
-        }
-        return format(new Date(tick), 'HH:mm');
+
+    return devices.map(device => ({
+      ...device,
+      historicalData: device.historicalData.filter(d => new Date(d.timestamp) >= cutoffDate),
+    }));
+  }, [devices, timePeriod]);
+
+
+  if (!devices || devices.length === 0) {
+    return (
+      <Card className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800">
+        <CardHeader>
+          <CardTitle>CO Level Monitoring</CardTitle>
+          <CardDescription>Awaiting data...</CardDescription>
+        </CardHeader>
+        <CardContent className="h-[300px] flex items-center justify-center">
+          <p className="text-muted-foreground">No device data available to display chart.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const legendFormatter = (value: string) => {
+    const device = devices.find(d => d.name === value);
+    if (device) {
+      return `${device.name} (${device.coLevel.toFixed(2)} PPM)`;
     }
+    return value;
+  };
+
+  const timeFormatter = (tick: number | string) => {
+    if (typeof tick === 'string') {
+      return format(new Date(tick), 'HH:mm');
+    }
+    return format(new Date(tick), 'HH:mm');
+  };
 
   return (
     <Card className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800">
       <CardHeader>
-        <CardTitle>Live CO Level Monitoring</CardTitle>
-        <CardDescription>
-          Real-time CO levels (ppm) for all devices.
-        </CardDescription>
+        <div className="flex sm:flex-row flex-col sm:items-center justify-between gap-2">
+            <div>
+                <CardTitle>Live CO Level Monitoring</CardTitle>
+                <CardDescription>Real-time CO levels (ppm) for all devices.</CardDescription>
+            </div>
+            <Select value={timePeriod} onValueChange={setTimePeriod}>
+                <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select time period" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="1h">Last Hour</SelectItem>
+                    <SelectItem value="6h">Last 6 Hours</SelectItem>
+                    <SelectItem value="24h">Last 24 Hours</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
@@ -119,18 +156,18 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                 }}
               />
               <Legend iconSize={14} formatter={legendFormatter} />
-              {devices.map((device, index) => (
+              {filteredDevices.map((device, index) => (
                 <Line
-                    key={device.id}
-                    data={device.historicalData.map(h => ({...h, timestamp: new Date(h.timestamp).getTime()}))}
-                    type="monotone"
-                    name={device.name}
-                    dataKey="coLevel"
-                    stroke={COLORS[index % COLORS.length]}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 8 }}
-                    connectNulls={true}
+                  key={device.id}
+                  data={device.historicalData.map(h => ({ ...h, timestamp: new Date(h.timestamp).getTime() }))}
+                  type="monotone"
+                  name={device.name}
+                  dataKey="coLevel"
+                  stroke={COLORS[index % COLORS.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 8 }}
+                  connectNulls={true}
                 />
               ))}
             </LineChart>
