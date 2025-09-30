@@ -8,10 +8,10 @@ interface PpmChartProps {
 }
 
 export default function PpmChart({ device }: PpmChartProps) {
-  if (!device || !device.historicalData) {
+  if (!device || !device.historicalData || device.historicalData.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Select a device to view its historical data</p>
+        <p className="text-muted-foreground">No historical data available for this device.</p>
       </div>
     );
   }
@@ -39,6 +39,7 @@ export default function PpmChart({ device }: PpmChartProps) {
             fontSize={12}
             tickLine={false}
             axisLine={false}
+            domain={[0, 'dataMax + 10']}
         />
         <Tooltip
             contentStyle={{
@@ -47,7 +48,7 @@ export default function PpmChart({ device }: PpmChartProps) {
             }}
         />
         <Legend />
-        <Line type="monotone" dataKey="coLevel" stroke="hsl(var(--primary))" name="CO Level (ppm)" dot={false} />
+        <Line type="monotone" dataKey="coLevel" stroke="hsl(var(--primary))" name="CO Level (ppm)" dot={false} connectNulls />
       </LineChart>
     </ResponsiveContainer>
   );

@@ -51,7 +51,7 @@ export function DeviceDetailsCard({ device }: DeviceDetailsCardProps) {
             <p className="text-xs text-muted-foreground">Last updated: {new Date(device.timestamp).toLocaleString()}</p>
         </div>
         <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Historical Data (last 5 minutes)</h3>
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Historical Data (last 20 readings)</h3>
             <div className="h-[300px] w-full">
                 <PpmChart device={device} />
             </div>

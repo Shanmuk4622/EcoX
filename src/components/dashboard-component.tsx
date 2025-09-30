@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
-import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
 import type { Device, Alert } from '@/lib/types';
 import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from 'lucide-react';
@@ -38,15 +37,18 @@ export function DashboardComponent() {
       return;
     }
 
-    // Listener for static device data (name, location, etc.)
     const devicesQuery = query(collection(db, 'devices'));
     const unsubscribeDevices = onSnapshot(devicesQuery, (snapshot) => {
-      const staticDevices = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Omit<Device, 'coLevel' | 'timestamp' | 'historicalData' | 'status'>[];
+      const staticDevicesData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+              id: doc.id,
+              name: data.name || 'Unknown Device',
+              location: data.location?.name || 'Unknown Location',
+              coords: { lat: data.location?.lat || 0, lng: data.location?.lng || 0 },
+          };
+      });
 
-      // Listener for real-time readings
       const readingsQuery = query(collection(db, 'readings'));
       const unsubscribeReadings = onSnapshot(readingsQuery, (readingsSnapshot) => {
         const readingsByDevice: { [key: string]: { coLevel: number, timestamp: string }[] } = {};
@@ -61,11 +63,13 @@ export function DashboardComponent() {
           }
           
           let timestampStr: string;
-           if (reading.timestamp instanceof Timestamp) {
-                timestampStr = reading.timestamp.toDate().toISOString();
-            } else {
-                timestampStr = reading.timestamp;
-            }
+          if (reading.timestamp instanceof Timestamp) {
+            timestampStr = reading.timestamp.toDate().toISOString();
+          } else if (typeof reading.timestamp === 'string') {
+            timestampStr = reading.timestamp;
+          } else {
+            timestampStr = new Date().toISOString();
+          }
 
           readingsByDevice[deviceId].push({
             coLevel: reading.coLevel,
@@ -73,7 +77,7 @@ export function DashboardComponent() {
           });
         });
         
-        const updatedDevices = staticDevices.map(staticDevice => {
+        const updatedDevices: Device[] = staticDevicesData.map(staticDevice => {
           const deviceReadings = readingsByDevice[staticDevice.id] || [];
           deviceReadings.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
           
@@ -84,13 +88,12 @@ export function DashboardComponent() {
             coLevel: latestReading.coLevel,
             timestamp: latestReading.timestamp,
             status: getDeviceStatus(latestReading.coLevel),
-            historicalData: deviceReadings.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).slice(-20), // Keep latest 20 for charts
+            historicalData: deviceReadings.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()).slice(-20),
           };
         });
 
         const sortedDevices = updatedDevices.sort((a, b) => a.name.localeCompare(b.name));
         
-        // Play sounds based on status changes
         sortedDevices.forEach(newDevice => {
             const oldDevice = devices.find(d => d.id === newDevice.id);
             if (oldDevice && oldDevice.status !== newDevice.status) {
@@ -145,55 +148,10 @@ export function DashboardComponent() {
 
   useEffect(() => {
     if (devices.length > 0) {
-      checkForAnomalies(devices);
       updateStatusAlerts(devices);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [devices]);
-
-  async function checkForAnomalies(targetDevices: Device[]) {
-    for (const device of targetDevices) {
-      if (device.historicalData && device.historicalData.length > 1) {
-        const latestReading = device.historicalData[device.historicalData.length - 1];
-        try {
-          const result = await detectCoAnomaly({
-            deviceId: device.id,
-            coLevel: latestReading.coLevel,
-            timestamp: latestReading.timestamp,
-            historicalData: device.historicalData.slice(0, -1),
-          });
-
-          if (result.isAnomaly) {
-            const anomalyAlert: Alert = {
-              id: `anomaly-${device.id}-${latestReading.timestamp}`,
-              deviceId: device.id,
-              deviceName: device.name,
-              location: device.location,
-              message: result.explanation,
-              timestamp: latestReading.timestamp,
-              severity: 'Warning',
-            };
-            
-            setAlerts(prevAlerts => {
-              const alertExists = prevAlerts.some(a => a.id === anomalyAlert.id);
-              if (!alertExists) {
-                setTimeout(() => {
-                  toast({
-                    title: `AI Anomaly Detected: ${device.name}`,
-                    description: result.explanation,
-                  });
-                }, 0);
-                return [anomalyAlert, ...prevAlerts].slice(0, 20);
-              }
-              return prevAlerts;
-            });
-          }
-        } catch (e) {
-          console.error(`AI Anomaly detection failed for ${device.id}:`, e);
-        }
-      }
-    }
-  }
 
   function updateStatusAlerts(targetDevices: Device[]) {
     const statusAlerts = targetDevices
