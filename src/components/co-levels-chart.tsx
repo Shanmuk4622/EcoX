@@ -74,6 +74,18 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
       case '6h':
         cutoffDate = sub(now, { hours: 6 });
         break;
+      case '12h':
+        cutoffDate = sub(now, { hours: 12 });
+        break;
+      case '7d':
+        cutoffDate = sub(now, { days: 7 });
+        break;
+      case '30d':
+        cutoffDate = sub(now, { days: 30 });
+        break;
+      case '6m':
+        cutoffDate = sub(now, { months: 6 });
+        break;
       case '24h':
       default:
         cutoffDate = sub(now, { hours: 24 });
@@ -141,7 +153,11 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                 <SelectContent>
                     <SelectItem value="1h">Last Hour</SelectItem>
                     <SelectItem value="6h">Last 6 Hours</SelectItem>
+                    <SelectItem value="12h">Last 12 Hours</SelectItem>
                     <SelectItem value="24h">Last 24 Hours</SelectItem>
+                    <SelectItem value="7d">Last 7 Days</SelectItem>
+                    <SelectItem value="30d">Last 30 Days</SelectItem>
+                    <SelectItem value="6m">Last 6 Months</SelectItem>
                 </SelectContent>
             </Select>
         </div>
