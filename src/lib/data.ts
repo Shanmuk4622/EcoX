@@ -3,16 +3,18 @@ import { doc } from 'firebase/firestore';
 
 const now = new Date();
 
-const generateHistoricalData = (baseLevel: number) => {
+// We generate a few recent historical points for a realistic starting chart.
+const generateInitialHistoricalData = (baseLevel: number) => {
   const data = [];
-  for (let i = 5; i > 0; i--) {
-    const timestamp = new Date(now.getTime() - i * 60000).toISOString();
+  const now = new Date();
+  for (let i = 19; i >= 0; i--) {
+    const timestamp = new Date(now.getTime() - i * 60000).toISOString(); // 20 minutes of data
     const coLevel = parseFloat(
-      (baseLevel + Math.random() * 5 - 2.5).toFixed(2)
+      (baseLevel + Math.random() * 2 - 1).toFixed(2)
     );
     data.push({ coLevel: Math.max(0, coLevel), timestamp });
   }
-  return data;
+  return data.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 };
 
 export const initialDevices: Omit<Device, 'historicalData'> & { historicalData: { coLevel: number; timestamp: string }[] }[] = [
@@ -24,7 +26,7 @@ export const initialDevices: Omit<Device, 'historicalData'> & { historicalData: 
     status: 'Normal',
     coLevel: 5.2,
     timestamp: now.toISOString(),
-    historicalData: generateHistoricalData(5),
+    historicalData: generateInitialHistoricalData(5),
   },
   {
     id: 'DEV002',
@@ -34,7 +36,7 @@ export const initialDevices: Omit<Device, 'historicalData'> & { historicalData: 
     status: 'Warning',
     coLevel: 9.8,
     timestamp: new Date(now.getTime() - 2 * 60000).toISOString(),
-    historicalData: generateHistoricalData(9),
+    historicalData: generateInitialHistoricalData(9),
   },
   {
     id: 'DEV003',
@@ -44,7 +46,7 @@ export const initialDevices: Omit<Device, 'historicalData'> & { historicalData: 
     status: 'Normal',
     coLevel: 2.1,
     timestamp: new Date(now.getTime() - 5 * 60000).toISOString(),
-    historicalData: generateHistoricalData(2),
+    historicalData: generateInitialHistoricalData(2),
   },
   {
     id: 'DEV004',
@@ -54,7 +56,7 @@ export const initialDevices: Omit<Device, 'historicalData'> & { historicalData: 
     status: 'Normal',
     coLevel: 6.5,
     timestamp: new Date(now.getTime() - 1 * 60000).toISOString(),
-    historicalData: generateHistoricalData(6),
+    historicalData: generateInitialHistoricalData(6),
   },
     {
     id: 'DEV005',
@@ -64,6 +66,6 @@ export const initialDevices: Omit<Device, 'historicalData'> & { historicalData: 
     status: 'Normal',
     coLevel: 4.3,
     timestamp: new Date(now.getTime() - 3 * 60000).toISOString(),
-    historicalData: generateHistoricalData(4),
+    historicalData: generateInitialHistoricalData(4),
   },
 ];

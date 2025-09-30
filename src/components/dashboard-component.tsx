@@ -42,71 +42,71 @@ export function DashboardComponent() {
     const q = query(collection(db, 'devices'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      setDevices(prevDevices => {
-        const newDevicesMap = new Map<string, Device>(prevDevices.map(d => [d.id, d]));
+      const updatedDevices: Device[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const deviceId = doc.id;
 
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          const deviceId = doc.id;
-
-          let timestampStr = new Date().toISOString();
-          if (data.timestamp) {
-              if (data.timestamp instanceof Timestamp) {
-                  timestampStr = data.timestamp.toDate().toISOString();
-              } else if (typeof data.timestamp === 'string') {
-                  timestampStr = data.timestamp;
-              } else if (data.timestamp._seconds) { 
-                  timestampStr = new Date(data.timestamp._seconds * 1000).toISOString();
-              }
-          }
-          
-          const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
-          const newReading = { coLevel, timestamp: timestampStr };
-          
-          const existingDevice = newDevicesMap.get(deviceId);
-          const previousHistoricalData = existingDevice?.historicalData || [];
-
-          const updatedDevice: Device = {
-            id: deviceId,
-            name: data.name || 'Unknown Device',
-            location: data.location?.name || 'Unknown Location',
-            coords: {
-              lat: data.location?.lat || 0,
-              lng: data.location?.lng || 0,
-            },
-            status: getDeviceStatus(newReading.coLevel),
-            coLevel: newReading.coLevel,
-            timestamp: newReading.timestamp,
-            historicalData: [newReading, ...previousHistoricalData].slice(0, 20),
-          };
-          newDevicesMap.set(deviceId, updatedDevice);
-        });
-
-        const updatedDevices = Array.from(newDevicesMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-
-        // Play sounds based on status changes
-        updatedDevices.forEach(newDevice => {
-          const oldDevice = prevDevices.find(d => d.id === newDevice.id);
-          if (!oldDevice || oldDevice.status !== newDevice.status) {
-            if (newDevice.status === 'Warning') {
-              playBeep(2);
-            }
-          }
-        });
-        
-        if (updatedDevices.length > 0 && !selectedDevice) {
-            setSelectedDevice(updatedDevices[0]);
-        } else if (selectedDevice) {
-            const updatedSelected = updatedDevices.find(d => d.id === selectedDevice.id);
-            if (updatedSelected) {
-              setSelectedDevice(updatedSelected);
+        let timestampStr = new Date().toISOString();
+        if (data.timestamp) {
+            if (data.timestamp instanceof Timestamp) {
+                timestampStr = data.timestamp.toDate().toISOString();
+            } else if (typeof data.timestamp === 'string') {
+                timestampStr = data.timestamp;
+            } else if (data.timestamp._seconds) {
+                timestampStr = new Date(data.timestamp._seconds * 1000).toISOString();
             }
         }
-  
-        setLoading(false);
-        setError(null);
-        return updatedDevices;
+        
+        const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
+        
+        // The historicalData is now managed by the backend. We just use it here.
+        const historicalData = (data.historicalData || []).map((d: any) => ({
+            ...d,
+            timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
+        })).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        const updatedDevice: Device = {
+          id: deviceId,
+          name: data.name || 'Unknown Device',
+          location: data.location?.name || 'Unknown Location',
+          coords: {
+            lat: data.location?.lat || 0,
+            lng: data.location?.lng || 0,
+          },
+          status: getDeviceStatus(coLevel),
+          coLevel: coLevel,
+          timestamp: timestampStr,
+          historicalData: historicalData,
+        };
+        updatedDevices.push(updatedDevice);
       });
+
+      const sortedDevices = updatedDevices.sort((a, b) => a.name.localeCompare(b.name));
+
+      // Play sounds based on status changes
+      sortedDevices.forEach(newDevice => {
+        const oldDevice = devices.find(d => d.id === newDevice.id);
+        if (oldDevice && oldDevice.status !== newDevice.status) {
+          if (newDevice.status === 'Warning') {
+            playBeep(2);
+          }
+        }
+      });
+      
+      if (sortedDevices.length > 0 && !selectedDevice) {
+          setSelectedDevice(sortedDevices[0]);
+      } else if (selectedDevice) {
+          const updatedSelected = sortedDevices.find(d => d.id === selectedDevice.id);
+          if (updatedSelected) {
+            setSelectedDevice(updatedSelected);
+          }
+      }
+
+      setDevices(sortedDevices);
+      setLoading(false);
+      setError(null);
+
     }, (err) => {
       console.error("Failed to fetch devices from Firestore:", err);
       setError("Failed to load device data. Please check your connection and Firebase setup.");
