@@ -21,18 +21,22 @@ export async function POST(request: Request) {
     // Convert incoming timestamp to a valid Date object, no matter the format
     let validDate: Date;
     if (timestamp._seconds !== undefined && timestamp._nanoseconds !== undefined) {
-        // Handle Firestore Timestamp object
+        // Handle Firestore Timestamp object that might be passed as a plain object
         validDate = new Date(timestamp._seconds * 1000 + timestamp._nanoseconds / 1000000);
     } else if (typeof timestamp === 'string') {
         // Handle ISO string format
         validDate = new Date(timestamp);
-    } else {
-        // Fallback to current time if format is unknown
+    } else if (timestamp instanceof Timestamp) {
+        // Handle Firestore Timestamp object directly
+        validDate = timestamp.toDate();
+    }
+    else {
+        // Fallback to current time if format is unknown, though this path should be avoided
         validDate = new Date();
     }
 
     if (isNaN(validDate.getTime())) {
-      return NextResponse.json({ error: 'Invalid timestamp format.', details: `Received: ${timestamp}` }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid timestamp format.', details: `Received: ${JSON.stringify(timestamp)}` }, { status: 400 });
     }
     
     const isoTimestamp = validDate.toISOString();
@@ -45,6 +49,8 @@ export async function POST(request: Request) {
         const doc = await transaction.get(deviceRef);
         if (!doc.exists) {
             console.error(`Device with ID ${deviceId} not found.`);
+            // If the device doesn't exist, we can't update it.
+            // Depending on requirements, you might want to create it here.
             return; // Exit transaction
         }
         const data = doc.data();

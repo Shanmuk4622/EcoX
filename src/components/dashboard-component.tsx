@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { detectCoAnomaly } from '@/ai/flows/real-time-co-alerts';
 import type { Device, Alert } from '@/lib/types';
@@ -30,6 +30,38 @@ export function DashboardComponent() {
       return 'Warning';
     }
     return 'Normal';
+  }, []);
+
+  // Effect to listen to new readings and trigger the API to update the device
+  useEffect(() => {
+    if (!db) return;
+
+    const q = query(collection(db, "readings"), orderBy("timestamp", "desc"), limit(1));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const newReading = change.doc.data();
+          try {
+            await fetch('/api/devices', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                deviceId: newReading.deviceId,
+                coLevel: newReading.coLevel,
+                timestamp: newReading.timestamp,
+              }),
+            });
+          } catch (e) {
+            console.error("Failed to post new reading to API", e)
+          }
+        }
+      });
+    });
+
+    return () => unsubscribe();
   }, []);
 
 
