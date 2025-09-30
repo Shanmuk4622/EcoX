@@ -11,12 +11,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Firestore not initialized. Check server environment variables.' }, { status: 500 });
   }
   try {
-    const payload = await request.json(); // Expects { deviceId: string, coLevel: number, timestamp: string }
+    const payload = await request.json(); 
+    // The timestamp from a Firestore trigger (or passed from the client after a read) 
+    // might be an object with _seconds and _nanoseconds.
     const { deviceId, coLevel, timestamp } = payload;
 
     if (!deviceId || typeof coLevel !== 'number' || !timestamp) {
         return NextResponse.json({ error: 'Invalid payload. Expecting deviceId, coLevel, and timestamp.' }, { status: 400 });
     }
+    
+    // Convert Firestore Timestamp object to ISO string if necessary
+    let isoTimestamp: string;
+    if (timestamp._seconds !== undefined && timestamp._nanoseconds !== undefined) {
+        isoTimestamp = new Date(timestamp._seconds * 1000 + timestamp._nanoseconds / 1000000).toISOString();
+    } else if (typeof timestamp === 'string') {
+        isoTimestamp = new Date(timestamp).toISOString();
+    } else {
+        isoTimestamp = new Date().toISOString();
+    }
+
 
     const deviceRef = adminDb.collection('devices').doc(deviceId);
 
@@ -24,19 +37,23 @@ export async function POST(request: Request) {
     await adminDb.runTransaction(async (transaction) => {
         const doc = await transaction.get(deviceRef);
         if (!doc.exists) {
-            throw new Error(`Device with ID ${deviceId} not found.`);
+            // If the device doesn't exist, we can't update it.
+            // In a real-world scenario, you might want to create it here.
+            console.error(`Device with ID ${deviceId} not found.`);
+            return; // Exit transaction
         }
         const data = doc.data();
         const existingData = data?.historicalData || [];
         
-        const newReading = { coLevel, timestamp };
+        const newReading = { coLevel, timestamp: isoTimestamp };
 
         // Add new reading and keep the array size to 20
+        // Prepend the new reading and take the last 20 items.
         const updatedHistoricalData = [newReading, ...existingData].slice(0, 20);
 
         transaction.update(deviceRef, {
             coLevel: coLevel,
-            timestamp: Timestamp.fromDate(new Date(timestamp)),
+            timestamp: Timestamp.fromDate(new Date(isoTimestamp)),
             historicalData: updatedHistoricalData,
         });
     });
