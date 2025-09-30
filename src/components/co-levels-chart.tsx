@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -50,36 +49,24 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         );
     }
     
-    // Get all unique timestamps from all devices' historical data
-    const allTimestamps = new Set<string>();
-    devices.forEach(device => {
-        (device.historicalData || []).forEach(d => {
-            allTimestamps.add(format(new Date(d.timestamp), 'HH:mm:ss'));
-        });
-    });
-
-    const sortedTimestamps = Array.from(allTimestamps).sort();
-
-    // Create the data structure for the chart
-    const dataForChart = sortedTimestamps.map(time => {
-        const dataPoint: { [key: string]: any } = { time };
-        devices.forEach(device => {
-            // Find the reading for this device at this specific time
-            const reading = (device.historicalData || []).find(d => format(new Date(d.timestamp), 'HH:mm:ss') === time);
-            dataPoint[device.name] = reading ? reading.coLevel : null;
-        });
-        return dataPoint;
-    });
-
-
+    // Combine all historical data and get the unique timestamps
+    const allData = devices.flatMap(d => d.historicalData || []);
+    const timeDomain = [
+        Math.min(...allData.map(d => new Date(d.timestamp).getTime())),
+        Math.max(...allData.map(d => new Date(d.timestamp).getTime()))
+    ];
+    
     const legendFormatter = (value: string) => {
         const device = devices.find(d => d.name === value);
         if (device) {
           return `${device.name} (${device.coLevel.toFixed(2)} PPM)`;
         }
         return value;
-      };
-
+    };
+    
+    const timeFormatter = (tick: number) => {
+        return format(new Date(tick), 'HH:mm:ss');
+    }
 
   return (
     <Card className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800">
@@ -93,7 +80,6 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={dataForChart}
               margin={{
                 top: 5,
                 right: 20,
@@ -103,7 +89,11 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
             >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis
-                dataKey="time"
+                dataKey={(payload) => new Date(payload.timestamp).getTime()}
+                type="number"
+                domain={timeDomain}
+                scale="time"
+                tickFormatter={timeFormatter}
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickLine={false}
@@ -117,6 +107,7 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
                 domain={[0, 'dataMax + 5']}
               />
               <Tooltip
+                labelFormatter={timeFormatter}
                 contentStyle={{
                   backgroundColor: 'hsl(var(--background))',
                   borderColor: 'hsl(var(--border))',
@@ -126,8 +117,10 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
               {devices.map((device, index) => (
                 <Line
                     key={device.id}
+                    data={device.historicalData}
                     type="monotone"
-                    dataKey={device.name}
+                    name={device.name}
+                    dataKey="coLevel"
                     stroke={COLORS[index % COLORS.length]}
                     strokeWidth={2}
                     dot={false}

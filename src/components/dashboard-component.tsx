@@ -60,11 +60,10 @@ export function DashboardComponent() {
         
         const coLevel = typeof data.coLevel === 'number' ? data.coLevel : 0;
         
-        // The historicalData is now managed by the backend. We just use it here.
         const historicalData = (data.historicalData || []).map((d: any) => ({
             ...d,
             timestamp: d.timestamp instanceof Timestamp ? d.timestamp.toDate().toISOString() : d.timestamp,
-        })).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        })).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
         const updatedDevice: Device = {
           id: deviceId,
@@ -142,13 +141,13 @@ export function DashboardComponent() {
   async function checkForAnomalies(targetDevices: Device[]) {
     for (const device of targetDevices) {
       if (device.historicalData && device.historicalData.length > 1) {
-        const latestReading = device.historicalData[0];
+        const latestReading = device.historicalData[device.historicalData.length - 1];
         try {
           const result = await detectCoAnomaly({
             deviceId: device.id,
             coLevel: latestReading.coLevel,
             timestamp: latestReading.timestamp,
-            historicalData: device.historicalData.slice(1),
+            historicalData: device.historicalData.slice(0, -1),
           });
 
           if (result.isAnomaly) {

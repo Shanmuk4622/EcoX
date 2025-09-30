@@ -38,16 +38,15 @@ const prompt = ai.definePrompt({
   output: {schema: DetectCoAnomalyOutputSchema},
   prompt: `You are an expert environmental safety analyst specializing in detecting Carbon Monoxide (CO) anomalies.
 
-You are provided with real-time CO readings from a sensor, historical data from that sensor, and a timestamp.
+You are provided with a real-time CO reading from a sensor and its historical data.
 
 Based on the provided information, determine if the current CO level is anomalous. Consider factors such as:
 
-- Recent trends in CO levels (increasing, decreasing, stable).
-- Seasonality and time of day.
-- Any sudden spikes or drops in CO levels.
-- Overall context of the historical data.
+- Sudden spikes or drops compared to the immediate history.
+- The overall trend (is it steadily climbing?).
+- The absolute value of the reading.
 
-Return whether the current CO level is anomalous (isAnomaly: true/false) and provide a brief explanation (explanation: string).
+Return whether the current CO level is anomalous (isAnomaly: true/false) and provide a brief, clear explanation for your decision.
 
 Here is the sensor data:
 
@@ -55,7 +54,7 @@ Device ID: {{{deviceId}}}
 Current CO Level: {{{coLevel}}} ppm
 Timestamp: {{{timestamp}}}
 
-Historical Data:
+Recent Historical Data (oldest to newest):
 {{#each historicalData}}
 - CO Level: {{{this.coLevel}}} ppm, Timestamp: {{{this.timestamp}}}
 {{/each}}
