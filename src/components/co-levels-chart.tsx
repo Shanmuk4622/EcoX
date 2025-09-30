@@ -50,27 +50,26 @@ export function COLevelsChart({ devices }: COLevelsChartProps) {
         );
     }
     
-    // Combine all historical data points from all devices into a single array
-    const allHistoricalData = devices.flatMap(device =>
-        device.historicalData.map(d => ({
-            deviceId: device.id,
-            deviceName: device.name,
-            coLevel: d.coLevel,
-            time: new Date(d.timestamp).getTime(),
-        }))
-    );
+    // Get all unique timestamps from all devices' historical data
+    const allTimestamps = new Set<string>();
+    devices.forEach(device => {
+        device.historicalData.forEach(d => {
+            allTimestamps.add(format(new Date(d.timestamp), 'HH:mm:ss'));
+        });
+    });
 
-    // Group data by timestamp
-    const dataByTime = allHistoricalData.reduce((acc, curr) => {
-        const timeStr = format(new Date(curr.time), 'HH:mm:ss');
-        if (!acc[timeStr]) {
-            acc[timeStr] = { time: timeStr };
-        }
-        acc[timeStr][curr.deviceName] = curr.coLevel;
-        return acc;
-    }, {} as Record<string, any>);
-    
-    const dataForChart = Object.values(dataByTime).sort((a,b) => a.time.localeCompare(b.time));
+    const sortedTimestamps = Array.from(allTimestamps).sort();
+
+    // Create the data structure for the chart
+    const dataForChart = sortedTimestamps.map(time => {
+        const dataPoint: { [key: string]: any } = { time };
+        devices.forEach(device => {
+            // Find the reading for this device at this specific time
+            const reading = device.historicalData.find(d => format(new Date(d.timestamp), 'HH:mm:ss') === time);
+            dataPoint[device.name] = reading ? reading.coLevel : null;
+        });
+        return dataPoint;
+    });
 
 
     const legendFormatter = (value: string) => {
