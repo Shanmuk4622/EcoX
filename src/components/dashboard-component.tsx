@@ -1,8 +1,8 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, onSnapshot, query, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase-client';
+import { supabase } from '@/lib/supabase-client';
 import type { Device, Alert } from '@/lib/types';
 import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from 'lucide-react';
@@ -21,126 +21,81 @@ export function DashboardComponent() {
   const { playBeep, startContinuousBeep, stopContinuousBeep, isPlaying } = useAudio();
 
   const getDeviceStatus = useCallback((coLevel: number): Device['status'] => {
-    if (coLevel >= 300) {
-      return 'Critical';
-    }
-    if (coLevel >= 100) {
-      return 'Warning';
-    }
+    if (coLevel >= 300) return 'Critical';
+    if (coLevel >= 100) return 'Warning';
     return 'Normal';
   }, []);
 
-  useEffect(() => {
-    if (!db) {
-      setError("Firestore is not configured. Please add your Firebase project configuration to your environment variables.");
+  const fetchInitialData = useCallback(async () => {
+    setLoading(true);
+    const { data: devicesData, error: devicesError } = await supabase
+      .from('devices')
+      .select(`
+        id,
+        name,
+        location,
+        lat,
+        lng,
+        readings ( co_level, timestamp )
+      `);
+
+    if (devicesError) {
+      console.error("Failed to fetch devices from Supabase:", devicesError);
+      setError("Failed to load device data. Please check your connection and Supabase setup.");
       setLoading(false);
       return;
     }
 
-    const devicesQuery = query(collection(db, 'devices'));
-    const unsubscribeDevices = onSnapshot(devicesQuery, (snapshot) => {
-      const staticDevicesData = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-              id: doc.id,
-              name: data.name || 'Unknown Device',
-              location: data.location?.name || 'Unknown Location',
-              coords: { lat: data.location?.lat || 0, lng: data.location?.lng || 0 },
-          };
-      });
-
-      const readingsQuery = query(collection(db, 'readings'));
-      const unsubscribeReadings = onSnapshot(readingsQuery, (readingsSnapshot) => {
-        const readingsByDevice: { [key: string]: { coLevel: number, timestamp: string }[] } = {};
-
-        readingsSnapshot.forEach((doc) => {
-          const reading = doc.data();
-          const deviceId = reading.deviceId;
-          if (!deviceId) return;
-
-          if (!readingsByDevice[deviceId]) {
-            readingsByDevice[deviceId] = [];
-          }
-          
-          let timestampStr: string;
-          if (reading.timestamp instanceof Timestamp) {
-            timestampStr = reading.timestamp.toDate().toISOString();
-          } else if (typeof reading.timestamp === 'string') {
-            timestampStr = reading.timestamp;
-          } else {
-            timestampStr = new Date().toISOString();
-          }
-
-          readingsByDevice[deviceId].push({
-            coLevel: reading.coLevel,
-            timestamp: timestampStr,
-          });
-        });
+    const formattedDevices: Device[] = devicesData.map((device: any) => {
+        const readings = device.readings.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const latestReading = readings[0] || { co_level: 0, timestamp: new Date().toISOString() };
         
-        const updatedDevices: Device[] = staticDevicesData.map(staticDevice => {
-          const deviceReadings = readingsByDevice[staticDevice.id] || [];
-          deviceReadings.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-          
-          const latestReading = deviceReadings[0] || { coLevel: 0, timestamp: new Date().toISOString() };
-
-          return {
-            ...staticDevice,
-            coLevel: latestReading.coLevel,
+        return {
+            id: device.id,
+            name: device.name || 'Unknown Device',
+            location: device.location || 'Unknown Location',
+            coords: { lat: device.lat || 0, lng: device.lng || 0 },
+            coLevel: latestReading.co_level,
             timestamp: latestReading.timestamp,
-            status: getDeviceStatus(latestReading.coLevel),
-            historicalData: deviceReadings.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
-          };
-        });
-
-        const sortedDevices = updatedDevices.sort((a, b) => a.name.localeCompare(b.name));
-        
-        sortedDevices.forEach(newDevice => {
-            const oldDevice = devices.find(d => d.id === newDevice.id);
-            if (oldDevice && oldDevice.status !== newDevice.status) {
-              if (newDevice.status === 'Warning') {
-                playBeep(2);
-              }
-            }
-        });
-
-        if (sortedDevices.length > 0 && !selectedDevice) {
-            setSelectedDevice(sortedDevices[0]);
-        } else if (selectedDevice) {
-            const updatedSelected = sortedDevices.find(d => d.id === selectedDevice.id);
-            if (updatedSelected) {
-              setSelectedDevice(updatedSelected);
-            }
-        }
-        
-        setDevices(sortedDevices);
-        setLoading(false);
-        setError(null);
-      }, (err) => {
-        console.error("Failed to fetch readings from Firestore:", err);
-        setError("Failed to load readings data.");
-        setLoading(false);
-      });
-      
-      return () => unsubscribeReadings();
-      
-    }, (err) => {
-        console.error("Failed to fetch devices from Firestore:", err);
-        setError("Failed to load device data. Please check your connection and Firebase setup.");
-        setLoading(false);
+            status: getDeviceStatus(latestReading.co_level),
+            historicalData: readings.map((r: any) => ({ coLevel: r.co_level, timestamp: r.timestamp })).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
+        };
     });
 
-    return () => unsubscribeDevices();
+    const sortedDevices = formattedDevices.sort((a, b) => a.name.localeCompare(b.name));
+    
+    if (sortedDevices.length > 0 && !selectedDevice) {
+        setSelectedDevice(sortedDevices[0]);
+    }
+    
+    setDevices(sortedDevices);
+    setLoading(false);
+    setError(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [getDeviceStatus]);
+
+  useEffect(() => {
+    fetchInitialData();
+
+    const readingsSubscription = supabase
+      .channel('readings')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'readings' }, (payload) => {
+        console.log('New reading received:', payload);
+        fetchInitialData(); // Refetch all data on new reading
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(readingsSubscription);
+    };
+  }, [fetchInitialData]);
 
   useEffect(() => {
     const isAnyDeviceCritical = devices.some(d => d.status === 'Critical');
     const areAllDevicesNormal = devices.every(d => d.coLevel < 100);
 
     if (isAnyDeviceCritical) {
-      if (!isPlaying) {
-        startContinuousBeep();
-      }
+      if (!isPlaying) startContinuousBeep();
     } else if (isPlaying && areAllDevicesNormal) {
       stopContinuousBeep();
     }
@@ -172,11 +127,20 @@ export function DashboardComponent() {
       
       if (newStatusAlerts.length === 0) return prevAlerts;
 
-      const allAlerts = [...newStatusAlerts, ...prevAlerts]
+      newStatusAlerts.forEach(alert => {
+        if (alert.severity === 'Warning') {
+          playBeep(2);
+        }
+        toast({ 
+            title: `${alert.severity} Alert: ${alert.deviceName}`,
+            description: alert.message,
+            variant: alert.severity === 'Critical' ? 'destructive' : 'default'
+        });
+      });
+
+      return [...newStatusAlerts, ...prevAlerts]
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
           .slice(0, 50);
-
-      return allAlerts;
     });
   }
 
@@ -193,7 +157,7 @@ export function DashboardComponent() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground">
-              Displaying live data from your sensors via Firestore.
+              Displaying live data from your sensors via Supabase.
             </p>
           </div>
         </div>
