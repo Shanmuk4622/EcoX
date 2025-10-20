@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase-client';
-import type { Device, Alert } from '@/lib/types';
+import type { Device, Alert, Reading } from '@/lib/types';
 import { Alert as UiAlert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -30,14 +30,7 @@ export function DashboardComponent() {
     setLoading(true);
     const { data: devicesData, error: devicesError } = await supabase
       .from('devices')
-      .select(`
-        id,
-        name,
-        location,
-        lat,
-        lng,
-        readings ( co_level, timestamp )
-      `);
+      .select(`id, name, location, lat, lng, readings ( co_level, timestamp )`);
 
     if (devicesError) {
       console.error("Failed to fetch devices from Supabase:", devicesError);
@@ -47,25 +40,25 @@ export function DashboardComponent() {
     }
 
     const formattedDevices: Device[] = devicesData.map((device: any) => {
-        const readings = device.readings.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        const latestReading = readings[0] || { co_level: 0, timestamp: new Date().toISOString() };
-        
-        return {
-            id: device.id,
-            name: device.name || 'Unknown Device',
-            location: device.location || 'Unknown Location',
-            coords: { lat: device.lat || 0, lng: device.lng || 0 },
-            coLevel: latestReading.co_level,
-            timestamp: latestReading.timestamp,
-            status: getDeviceStatus(latestReading.co_level),
-            historicalData: readings.map((r: any) => ({ coLevel: r.co_level, timestamp: r.timestamp })).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
-        };
+      const readings = device.readings.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      const latestReading = readings[0] || { co_level: 0, timestamp: new Date().toISOString() };
+      
+      return {
+        id: device.id,
+        name: device.name || 'Unknown Device',
+        location: device.location || 'Unknown Location',
+        coords: { lat: device.lat || 0, lng: device.lng || 0 },
+        coLevel: latestReading.co_level,
+        timestamp: latestReading.timestamp,
+        status: getDeviceStatus(latestReading.co_level),
+        historicalData: readings.map((r: any) => ({ coLevel: r.co_level, timestamp: r.timestamp })).sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
+      };
     });
 
     const sortedDevices = formattedDevices.sort((a, b) => a.name.localeCompare(b.name));
     
     if (sortedDevices.length > 0 && !selectedDevice) {
-        setSelectedDevice(sortedDevices[0]);
+      setSelectedDevice(sortedDevices[0]);
     }
     
     setDevices(sortedDevices);
@@ -75,20 +68,66 @@ export function DashboardComponent() {
   }, [getDeviceStatus]);
 
   useEffect(() => {
+    // Fetch the initial data once on component mount
     fetchInitialData();
 
-    const readingsSubscription = supabase
-      .channel('readings')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'readings' }, (payload) => {
-        console.log('New reading received:', payload);
-        fetchInitialData(); // Refetch all data on new reading
-      })
+    // Define the handler for incoming real-time updates
+    const handleNewReading = (payload: any) => {
+      const newReading = payload.new;
+      
+      const readingDataPoint: Reading = { 
+        coLevel: newReading.co_level, 
+        timestamp: newReading.timestamp 
+      };
+
+      // Update the main devices list
+      setDevices(prevDevices => 
+        prevDevices.map(device => {
+          if (device.id === newReading.device_id) {
+            const updatedHistoricalData = [...device.historicalData, readingDataPoint]
+              .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+            return {
+              ...device,
+              coLevel: newReading.co_level,
+              timestamp: newReading.timestamp,
+              status: getDeviceStatus(newReading.co_level),
+              historicalData: updatedHistoricalData,
+            };
+          }
+          return device;
+        })
+      );
+
+      // Also update the selected device if it's the one that received a new reading
+      setSelectedDevice(prevSelected => {
+        if (prevSelected && prevSelected.id === newReading.device_id) {
+          const updatedHistoricalData = [...prevSelected.historicalData, readingDataPoint]
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          return {
+            ...prevSelected,
+            coLevel: newReading.co_level,
+            timestamp: newReading.timestamp,
+            status: getDeviceStatus(newReading.co_level),
+            historicalData: updatedHistoricalData,
+          };
+        }
+        return prevSelected;
+      });
+    };
+
+    // Set up the Supabase subscription
+    const channel = supabase
+      .channel('realtime-readings')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'readings' }, handleNewReading)
       .subscribe();
 
+    // Clean up the subscription on component unmount
     return () => {
-      supabase.removeChannel(readingsSubscription);
+      supabase.removeChannel(channel);
     };
-  }, [fetchInitialData]);
+  }, [fetchInitialData, getDeviceStatus]);
 
   useEffect(() => {
     const isAnyDeviceCritical = devices.some(d => d.status === 'Critical');
@@ -112,13 +151,13 @@ export function DashboardComponent() {
     const statusAlerts = targetDevices
       .filter(d => (d.status === 'Critical' || d.status === 'Warning'))
       .map(d => ({
-          id: `alert-${d.id}-${d.timestamp}`,
-          deviceId: d.id,
-          deviceName: d.name,
-          location: d.location,
-          message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
-          timestamp: d.timestamp,
-          severity: d.status as 'Critical' | 'Warning'
+        id: `alert-${d.id}-${d.timestamp}`,
+        deviceId: d.id,
+        deviceName: d.name,
+        location: d.location,
+        message: `${d.status} CO level of ${d.coLevel.toFixed(2)} ppm detected.`,
+        timestamp: d.timestamp,
+        severity: d.status as 'Critical' | 'Warning'
       }));
     
     setAlerts(prevAlerts => {
@@ -132,15 +171,15 @@ export function DashboardComponent() {
           playBeep(2);
         }
         toast({ 
-            title: `${alert.severity} Alert: ${alert.deviceName}`,
-            description: alert.message,
-            variant: alert.severity === 'Critical' ? 'destructive' : 'default'
+          title: `${alert.severity} Alert: ${alert.deviceName}`,
+          description: alert.message,
+          variant: alert.severity === 'Critical' ? 'destructive' : 'default'
         });
       });
 
       return [...newStatusAlerts, ...prevAlerts]
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 50);
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 50);
     });
   }
 
@@ -163,23 +202,23 @@ export function DashboardComponent() {
         </div>
       </div>
 
-       {error && (
-         <UiAlert variant="destructive">
-           <Terminal className="h-4 w-4" />
-           <AlertTitle>Connection Error</AlertTitle>
-           <AlertDescription>{error}</AlertDescription>
-         </UiAlert>
-       )}
+      {error && (
+        <UiAlert variant="destructive">
+          <Terminal className="h-4 w-4" />
+          <AlertTitle>Connection Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </UiAlert>
+      )}
 
-       {criticalAlertsCount > 0 && (
-         <UiAlert variant="destructive">
-           <Terminal className="h-4 w-4" />
-           <AlertTitle>Heads up! You have {criticalAlertsCount} critical alert(s).</AlertTitle>
-           <AlertDescription>
-             Please review the alerts section or the device list for more details.
-           </AlertDescription>
-         </UiAlert>
-       )}
+      {criticalAlertsCount > 0 && (
+        <UiAlert variant="destructive">
+          <Terminal className="h-4 w-4" />
+          <AlertTitle>Heads up! You have {criticalAlertsCount} critical alert(s).</AlertTitle>
+          <AlertDescription>
+            Please review the alerts section or the device list for more details.
+          </AlertDescription>
+        </UiAlert>
+      )}
       
       <DashboardTabs
         devices={devices}
