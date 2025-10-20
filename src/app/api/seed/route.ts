@@ -1,26 +1,33 @@
 
 'use server';
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
-import { initialDevices } from '@/lib/data';
+import { createClient } from '@supabase/supabase-js';
+import { initialDevices } from '@/lib/data'; // We'll reuse the initial device data
+
+// Initialize Supabase client for server-side operations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!;
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET() {
-  if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error('Error seeding database: Firestore not initialized correctly.');
-    return NextResponse.json({ error: 'Firestore not initialized' }, { status: 500 });
+  if (!supabaseAdmin) {
+    console.error('Error seeding database: Supabase not initialized correctly.');
+    return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
   }
 
   try {
-    const devicesCollection = adminDb.collection('devices');
-    const batch = adminDb.batch();
+    console.log("Starting to seed database...");
 
-    initialDevices.forEach(device => {
-      const deviceRef = devicesCollection.doc(device.id);
-      batch.set(deviceRef, device);
-    });
+    // Supabase client's insert method can take an array of objects
+    const { data, error } = await supabaseAdmin
+      .from('devices')
+      .insert(initialDevices);
 
-    await batch.commit();
-    
+    if (error) {
+      // Throw the error to be caught by the catch block
+      throw new Error(`Supabase insert error: ${error.message}`);
+    }
+
     console.log(`Seeded ${initialDevices.length} devices successfully.`);
     return NextResponse.json({ message: `Seeded ${initialDevices.length} devices successfully.` });
 
