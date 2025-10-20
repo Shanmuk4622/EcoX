@@ -1,8 +1,7 @@
 
 'use client';
 
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase-client';
+import { supabase } from '@/lib/supabase-client';
 import { useAuth } from '@/components/auth-provider';
 import { Button } from '@/components/ui/button';
 
@@ -10,9 +9,8 @@ export function UserAuthButton() {
   const { user, loading } = useAuth();
 
   const handleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await supabase.auth.signInWithOAuth({ provider: 'google' });
     } catch (error) {
       console.error('Error signing in with Google: ', error);
     }
@@ -20,7 +18,7 @@ export function UserAuthButton() {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Error signing out: ', error);
     }
@@ -34,7 +32,7 @@ export function UserAuthButton() {
     return (
       <div className="flex items-center gap-4">
         <span className="text-sm font-medium text-muted-foreground">
-          Welcome, {user.displayName?.split(' ')[0] || 'User'}
+          Welcome, {user.user_metadata.full_name?.split(' ')[0] || user.email}
         </span>
         <Button onClick={handleSignOut} variant="outline" size="sm">Sign Out</Button>
       </div>
