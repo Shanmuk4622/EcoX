@@ -9,7 +9,7 @@ export function Header() {
       <SidebarTrigger className="h-8 w-8 md:hidden" />
       <div className="flex items-center gap-2">
         <Shield className="h-6 w-6 text-primary" />
-        <h1 className="text-xl font-bold">EnviroWatch</h1>
+        <h1 className="text-xl font-bold">ExoX</h1>
       </div>
       <div className="ml-auto">
         <UserNav />

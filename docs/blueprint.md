@@ -1,4 +1,4 @@
-# **App Name**: EnviroWatch Dashboard
+# **App Name**: ExoX Dashboard
 
 ## Core Features:
 

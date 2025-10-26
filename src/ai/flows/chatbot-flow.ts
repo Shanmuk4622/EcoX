@@ -10,7 +10,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { compile } from 'handlebars';
 
 const ChatInputSchema = z.object({
   history: z.array(z.object({
@@ -44,30 +43,27 @@ export async function chat(input: ChatInput): Promise<ChatOutput> {
   return chatFlow(input);
 }
 
-const systemPromptTemplate = `You are a helpful AI assistant for the EnviroWatch application, a dashboard that monitors Carbon Monoxide (CO) levels from various sensors.
+// Helper function to generate the system prompt
+const generateSystemPrompt = (deviceData?: any[], alertData?: any[]) => {
+  let prompt = 'You are a helpful AI assistant for the EnviroWatch application, a dashboard that monitors Carbon Monoxide (CO) levels from various sensors.\n\nYour role is to answer user questions based on the real-time data provided. Be concise and helpful.\n\nHere is the current data:\n';
 
-Your role is to answer user questions based on the real-time data provided. Be concise and helpful.
+  if (deviceData && deviceData.length > 0) {
+    prompt += 'Devices:\n';
+    deviceData.forEach(device => {
+      prompt += `- Name: ${device.name}, Location: ${device.location}, Status: ${device.status}, CO Level: ${device.coLevel} ppm\n`;
+    });
+  }
 
-Here is the current data:
-{{#if deviceData}}
-Devices:
-{{#each deviceData}}
-- Name: {{this.name}}, Location: {{this.location}}, Status: {{this.status}}, CO Level: {{this.coLevel}} ppm
-{{/each}}
-{{/if}}
+  if (alertData && alertData.length > 0) {
+    prompt += '\nAlerts:\n';
+    alertData.forEach(alert => {
+      prompt += `- Device: ${alert.deviceName}, Severity: ${alert.severity}, Message: "${alert.message}", Time: ${alert.timestamp}\n`;
+    });
+  }
 
-{{#if alertData}}
-Alerts:
-{{#each alertData}}
-- Device: {{this.deviceName}}, Severity: {{this.severity}}, Message: "{{this.message}}", Time: {{this.timestamp}}
-{{/each}}
-{{/if}}
-
-If you don't have enough information to answer, say so. Do not make up information.
-`;
-
-// Compile the template once, outside the flow execution.
-const compiledSystemPrompt = compile(systemPromptTemplate);
+  prompt += '\nIf you don\'t have enough information to answer, say so. Do not make up information.';
+  return prompt;
+};
 
 const chatFlow = ai.defineFlow(
   {
@@ -79,7 +75,7 @@ const chatFlow = ai.defineFlow(
     const { history, message, deviceData, alertData } = input;
 
     // Generate the system prompt with the dynamic data
-    const systemPrompt = compiledSystemPrompt({ deviceData, alertData });
+    const systemPrompt = generateSystemPrompt(deviceData, alertData);
     
     // Exclude the latest user message from the history to avoid duplication.
     const conversationHistory = history.slice(0, -1);

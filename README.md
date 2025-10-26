@@ -1,7 +1,7 @@
 
-# Enviro-Watch: Real-Time Environmental Monitoring Dashboard
+# ExoX: Real-Time Environmental Monitoring Dashboard
 
-Enviro-Watch is a modern, real-time dashboard designed to monitor environmental sensor data. It provides a centralized interface to visualize critical metrics, such as Carbon Monoxide (CO) levels, from multiple IoT devices. The application features real-time data updates, an interactive map, automated alerts, and a helpful AI chatbot for data queries.
+ExoX is a modern, real-time dashboard designed to monitor environmental sensor data. It provides a centralized interface to visualize critical metrics, such as Carbon Monoxide (CO) levels, from multiple IoT devices. The application features real-time data updates, an interactive map, automated alerts, and a helpful AI chatbot for data queries.
 
 This project was originally built using Firebase and has been migrated to use **Supabase** for its backend services, including the database, real-time subscriptions, and user authentication.
 

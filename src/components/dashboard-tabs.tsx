@@ -9,7 +9,7 @@ import { DeviceStatusPieChart } from '@/components/device-status-pie-chart';
 import { RecentAlerts } from '@/components/recent-alerts';
 import { DevicesTable } from '@/components/devices-table';
 import { DeviceDetailsCard } from '@/components/device-details-card';
-import { MapView } from '@/components/map-view';
+import { DeviceMapView } from '@/components/device-map-view';
 import { AlertsTable } from '@/components/alerts-table';
 import type { Device, Alert } from '@/lib/types';
 
@@ -56,7 +56,7 @@ export function DashboardTabs({ devices, alerts, onSelectDevice, selectedDevice 
         </div>
       </TabsContent>
       <TabsContent value="map">
-        <MapView devices={devices}/>
+        <DeviceMapView devices={devices} selectedDevice={selectedDevice} />
       </TabsContent>
       <TabsContent value="alerts">
         <AlertsTable alerts={alerts}/>

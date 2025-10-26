@@ -9,8 +9,8 @@ import { AuthProvider } from "@/components/auth-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Real-Time CO Monitor",
-  description: "A real-time CO monitoring dashboard using Next.js and Firebase.",
+  title: "ExoX",
+  description: "A real-time environmental monitoring dashboard.",
 };
 
 export default function RootLayout({

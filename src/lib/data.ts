@@ -1,5 +1,4 @@
 import type { Device } from './types';
-import { doc } from 'firebase/firestore';
 
 const now = new Date();
 
